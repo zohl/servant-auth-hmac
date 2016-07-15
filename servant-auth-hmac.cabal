@@ -41,8 +41,10 @@ executable example
                , blaze-markup
                , bytestring
                , cereal
+               , containers
                , mtl
                , http-media
+               , random
                , servant
                , servant-auth-hmac
                , servant-server

@@ -102,22 +102,51 @@ let app: App = (() => {
         });
 
 
-        document.onclick = (event) => {
-            if(event.target instanceof HTMLInputElement) {
-                let element = event.target;
-                if(element.type == 'submit') {
-                    let form = getFormByInput(element);
-                    if (form != null) {
-                        ajax('')(post(form.action, getFormData(form)))
-                            .then(xhr => {
-                                state['token'] = JSON.parse(xhr.response);
-                            })
-                            .catch(err => {
+        let handleSubmit = (element: HTMLInputElement) => {
 
-                            });
-                    }
+            let form = getFormByInput(element);
+
+            if (form != null) {
+                let formData = getFormData(form);
+                let domFeedback = domContainer.querySelector('.feedback');
+
+                let updateSecret = xhr => {
+                    state['secret'] = JSON.parse(xhr.response);
+                    domFeedback.innerHTML = 'Ok, redirecting...';
+
+                    let anchor = <HTMLAnchorElement>domMenu.querySelector('a[href="#private"]');
+                    setTimeout(() => {anchor.click();}, 1000);
+                };
+
+                let updateUser = xhr => {
+                    state['token'] = JSON.parse(xhr.response);
+                    state['username'] = formData.username;
+
+                    ajax(origin)(get('/api/secret/' + state['username']))
+                        .then(updateSecret)
+                        .catch(err => {
+                            domFeedback.innerHTML = 'The secret is not available';
+                        });
+                };
+
+                ajax('')(post(form.action, formData))
+                    .then(updateUser)
+                    .catch(err => {
+                        domFeedback.innerHTML = 'Wrong username/password';
+                    });
+            }
+
+            return false;
+        };
+
+
+        document.onclick = (event) => {
+            if (event.target instanceof HTMLInputElement) {
+                let element = event.target;
+
+                if (element.type == 'submit') {
+                    return handleSubmit(element);
                 }
-                return false;
             }
         };
 

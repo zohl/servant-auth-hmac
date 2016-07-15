@@ -16,7 +16,7 @@ type AjaxParameters = {
 
 
 type SuccessCallback = (xhr: XMLHttpRequest) => void;
-type FailureCallback = (err: string) => void;
+type FailureCallback = (err: number) => void;
 
 
 let ajax = (origin: string) =>
@@ -33,7 +33,7 @@ let ajax = (origin: string) =>
           resolve(xhr);
         }
         else {
-          reject(xhr.status.toString());
+          reject(xhr.status);
         }
       }
     };

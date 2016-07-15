@@ -5,7 +5,9 @@
 {-# LANGUAGE TypeFamilies               #-}
 {-# LANGUAGE TypeOperators              #-}
 
+
 import Control.Monad (when)
+import Control.Monad.IO.Class (liftIO)
 
 import Data.Aeson
 import Data.Maybe (fromJust, isNothing)
@@ -26,10 +28,13 @@ import Servant.Server (
   , serveWithContext
   , serve)
 
+import Servant                          (throwError)
 import Servant.API.Experimental.Auth    (AuthProtect)
 import Servant.API.ContentTypes         (Accept(..), MimeRender(..), JSON)
 import Servant.Server.Experimental.Auth (AuthHandler)
 import Servant.Server.Experimental.Auth.HMAC
+import Servant.Server (err401, err403, err404)
+import Servant.Utils.StaticFiles (serveDirectory)
 
 import Network.Wai              (Application, Request)
 import Network.Wai.Handler.Warp (run)
@@ -43,8 +48,20 @@ import Text.Blaze.Html.Renderer.Utf8 (renderHtml)
 import qualified Text.Blaze.Html5 as H
 import qualified Text.Blaze.Html5.Attributes as A
 
+import Data.IORef (IORef, newIORef, readIORef, modifyIORef)
 
-import Servant.Utils.StaticFiles (serveDirectory)
+import Data.Map (Map)
+import qualified Data.Map as Map
+
+import System.Random
+
+
+type Username = String
+type Password = String
+type Token = String
+type Secret = String
+
+type Storage = IORef (Map Username (Password, Maybe Token, Secret))
 
 
 data HTML
@@ -69,13 +86,16 @@ type ExampleAPI = Get '[HTML] ByteString
              :<|> "api" :> "templates" :> Get '[JSON] [String]
              :<|> "api" :> "templates" :> Capture "name" String :> Get '[HTML] ByteString
              :<|> "api" :> "login" :> ReqBody '[JSON] LoginArgs :> Post '[JSON] String
+             :<|> "api" :> "secret" :> Capture "username" String :> Get '[JSON] String
 
-server :: FilePath -> Server ExampleAPI
-server root = serveIndex
+
+server :: FilePath -> Storage -> Server ExampleAPI
+server root storage = serveIndex
          :<|> serveStatic
          :<|> serveTemplates
          :<|> serveTemplate
-         :<|> serveLogin where
+         :<|> serveLogin
+         :<|> serveSecret where
 
   serveIndex = return $ render indexPage
 
@@ -93,17 +113,46 @@ server root = serveIndex
 
   serveTemplate name = return . render $ (maybe defaultPage id) (lookup name templates)
 
-  serveLogin args = return $ "TODO"
+  serveLogin args = getUser >>= getToken where
+    getUser = do
+      result <- liftIO $ (Map.lookup (username args) <$> (readIORef storage))
+      case result of
+        Just (password', token, _) -> case (password' == (password args)) of
+          True -> return token
+          False -> throwError err403
+        Nothing -> throwError err403
+
+    getToken (Just token) = return token
+    getToken Nothing = do
+      token <- liftIO $ (take 16 . randomRs ('A', 'Z')) <$> getStdGen
+      liftIO $ modifyIORef
+        storage
+        (Map.adjust (\(password', _, secret) -> (password', Just token, secret)) (username args))
+
+      return token
+
+  -- TODO check credentials
+  serveSecret username' = do
+    result <- liftIO $ (Map.lookup username' <$> readIORef storage)
+    case result of
+      Nothing -> throwError err404
+      Just (_, _, secret) -> return secret
 
 
-app :: FilePath -> Application
-app root = serve (Proxy :: Proxy ExampleAPI) (server root)
+app :: FilePath -> Storage -> Application
+app root storage = serve (Proxy :: Proxy ExampleAPI) (server root storage)
 
 
 main :: IO ()
 main = do
   root <- (++ "/example/client/result/static") <$> getWorkingDirectory
-  run 8080 (app root)
+  storage <- newIORef $ Map.fromList [
+      ("mr_foo", ("password1", Nothing, "War is Peace"))
+    , ("mr_bar", ("letmein"  , Nothing, "Freedom is Slavery"))
+    , ("mr_baz", ("baseball" , Nothing, "Ignorance is Strength"))
+    ]
+
+  run 8080 (app root storage)
 
 
 indexPage :: H.Html
@@ -131,6 +180,7 @@ loginPage = do
        H.td $ "password:"
        H.td $ H.input ! A.type_ "password" ! A.name "password"
     H.input ! A.type_ "submit"
+  H.p ! A.class_ "feedback" $ ""
 
 
 privatePage :: H.Html
