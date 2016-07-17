@@ -1,5 +1,3 @@
-
-
 {-|
   Module:      Servant.Server.Experimental.HMAC.Cookie
   Copyright:   (c) 2016 Al Zohali
@@ -13,7 +11,12 @@
 -}
 
 module Servant.Server.Experimental.Auth.HMAC (
-
-) where
+    AuthHmacAccount
+  , AuthHmacSession
+  , AuthHmacData
+  , Settings(..)
+  , defaultSettings
+  , defaultAuthHandler
+  ) where
 
 import Servant.Server.Experimental.Auth.HMAC.Internal

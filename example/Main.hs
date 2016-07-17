@@ -4,6 +4,7 @@
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE TypeFamilies               #-}
 {-# LANGUAGE TypeOperators              #-}
+{-# LANGUAGE RecordWildCards            #-}
 
 
 import Control.Monad (when)
@@ -54,14 +55,18 @@ import Data.Map (Map)
 import qualified Data.Map as Map
 
 import System.Random
+import Control.Monad.Trans.Except (ExceptT)
+import Servant.Server (ServantErr)
+
 
 
 type Username = String
 type Password = String
 type Token = String
 type Secret = String
+type Session = (Password, Maybe Token, Secret)
 
-type Storage = IORef (Map Username (Password, Maybe Token, Secret))
+type Storage = IORef (Map Username Session)
 
 
 data HTML
@@ -81,16 +86,21 @@ data LoginArgs = LoginArgs {
 instance FromJSON LoginArgs
 
 
+
+type instance AuthHmacAccount = Username
+type instance AuthHmacSession = Session
+
 type ExampleAPI = Get '[HTML] ByteString
              :<|> "static" :> Raw
              :<|> "api" :> "templates" :> Get '[JSON] [String]
              :<|> "api" :> "templates" :> Capture "name" String :> Get '[HTML] ByteString
              :<|> "api" :> "login" :> ReqBody '[JSON] LoginArgs :> Post '[JSON] String
-             :<|> "api" :> "secret" :> Capture "username" String :> Get '[JSON] String
+             :<|> "api" :> "secret" :> Capture "username" Username
+                                      :> AuthProtect "hmac-auth" :> Get '[JSON] String
 
 
-server :: FilePath -> Storage -> Server ExampleAPI
-server root storage = serveIndex
+server :: FilePath -> Storage -> Settings -> Server ExampleAPI
+server root storage settings = serveIndex
          :<|> serveStatic
          :<|> serveTemplates
          :<|> serveTemplate
@@ -131,28 +141,35 @@ server root storage = serveIndex
 
       return token
 
-  -- TODO check credentials
-  serveSecret username' = do
-    result <- liftIO $ (Map.lookup username' <$> readIORef storage)
-    case result of
-      Nothing -> throwError err404
-      Just (_, _, secret) -> return secret
+  serveSecret :: Username -> (Username, Session) -> ExceptT ServantErr IO String
+  serveSecret username' (username'', (_, _, secret)) = case (username' == username'') of
+    True  -> return secret
+    False -> throwError err403 -- User can request only his own secret
 
 
-app :: FilePath -> Storage -> Application
-app root storage = serve (Proxy :: Proxy ExampleAPI) (server root storage)
+app :: FilePath -> Storage -> Settings -> Application
+app root storage settings = serveWithContext
+  (Proxy :: Proxy ExampleAPI)
+  ((defaultAuthHandler settings) :. EmptyContext)
+  (server root storage settings)
 
 
 main :: IO ()
 main = do
   root <- (++ "/example/client/result/static") <$> getWorkingDirectory
+
   storage <- newIORef $ Map.fromList [
       ("mr_foo", ("password1", Nothing, "War is Peace"))
     , ("mr_bar", ("letmein"  , Nothing, "Freedom is Slavery"))
     , ("mr_baz", ("baseball" , Nothing, "Ignorance is Strength"))
     ]
 
-  run 8080 (app root storage)
+  let authSettings = ($ defaultSettings) $ \(Settings {..}) -> Settings {
+      getSession = (\username -> (Map.lookup username) <$> (readIORef storage))
+    , ..
+    }
+
+  run 8080 (app root storage authSettings)
 
 
 indexPage :: H.Html

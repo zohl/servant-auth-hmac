@@ -49,6 +49,7 @@ executable example
                , servant-auth-hmac
                , servant-server
                , text
+               , transformers
                , unix
                , wai
                , warp
