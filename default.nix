@@ -1,6 +1,7 @@
-{ mkDerivation, aeson, base, base64-bytestring, blaze-html
-, blaze-markup, bytestring, cereal, cryptonite, deepseq, http-media
-, HUnit, memory, mtl, servant, servant-server, stdenv, text, time
+{ mkDerivation, aeson, attoparsec, base, base64-bytestring
+, blaze-html, blaze-markup, bytestring, cereal, containers
+, cryptonite, deepseq, http-media, http-types, HUnit, memory, mtl
+, random, servant, servant-server, stdenv, text, time, transformers
 , unix, wai, warp
 }:
 mkDerivation {
@@ -10,12 +11,13 @@ mkDerivation {
   isLibrary = true;
   isExecutable = true;
   libraryHaskellDepends = [
-    base base64-bytestring bytestring cereal memory servant
-    servant-server wai
+    attoparsec base base64-bytestring bytestring cereal http-types
+    memory servant servant-server time wai
   ];
   executableHaskellDepends = [
-    aeson base blaze-html blaze-markup bytestring cereal http-media mtl
-    servant servant-server text unix wai warp
+    aeson base blaze-html blaze-markup bytestring cereal containers
+    http-media mtl random servant servant-server text transformers unix
+    wai warp
   ];
   testHaskellDepends = [
     base bytestring cereal cryptonite deepseq HUnit servant-server time

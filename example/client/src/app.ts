@@ -1,7 +1,7 @@
 /// <reference path="element.d.ts"/>
 
 import * as promise from './promise';
-import {ajax, get, post} from './ajax';
+import {ajax, get, post, signed} from './ajax';
 
 
 interface App {
@@ -122,16 +122,18 @@ let app: App = (() => {
                     state['token'] = JSON.parse(xhr.response);
                     state['username'] = formData.username;
 
-                    ajax(origin)(get('/api/secret/' + state['username']))
+                    ajax(origin)(signed(state['username'])(get('/api/secret/' + state['username'])))
                         .then(updateSecret)
-                        .catch(err => {
+                        .catch(xhr => {
+                            console.log(xhr.response.toString());
                             domFeedback.innerHTML = 'The secret is not available';
                         });
                 };
 
                 ajax('')(post(form.action, formData))
                     .then(updateUser)
-                    .catch(err => {
+                    .catch(xhr => {
+                        console.log(xhr.response.toString());
                         domFeedback.innerHTML = 'Wrong username/password';
                     });
             }

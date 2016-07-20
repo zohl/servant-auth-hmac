@@ -14,16 +14,14 @@ type AjaxParameters = {
   data?:   string;
 };
 
-
-type SuccessCallback = (xhr: XMLHttpRequest) => void;
-type FailureCallback = (err: number) => void;
+type AjaxCallback = (xhr: XMLHttpRequest) => void;
 
 
 let ajax = (origin: string) =>
               promise.dispatch((params: AjaxParameters): Promise<XMLHttpRequest> => {
   let {method, uri, headers, data} = params;
 
-  return new Promise((resolve: SuccessCallback, reject: FailureCallback) => {
+  return new Promise((resolve: AjaxCallback, reject: AjaxCallback) => {
 
     let xhr = new XMLHttpRequest();
 
@@ -33,7 +31,7 @@ let ajax = (origin: string) =>
           resolve(xhr);
         }
         else {
-          reject(xhr.status);
+          reject(xhr);
         }
       }
     };
@@ -73,5 +71,25 @@ let del = (uri: string): AjaxParameters => ({
   });
 
 
-export {ajax, get, post, put, del};
+let signed = (username: string) => (params: AjaxParameters): Promise<AjaxParameters> => {
+    return new Promise((response, reject) => {
+        let {method, uri, headers, data} = params;
+        let hash = '';
+        let timestamp = Math.floor(Date.now()/1000).toString();
+
+        let newParams = {
+              method: method
+            , uri: uri
+            , headers: headers.concat({
+                  name: 'Authorization'
+                , value: `HMAC hash="${hash}",id="${username}",timestamp="${timestamp}"`
+            })
+            , data: data
+        }
+        response(newParams);
+    });
+};
+
+
+export {ajax, get, post, put, del, signed};
 
