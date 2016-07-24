@@ -14,8 +14,9 @@ module Servant.Server.Experimental.Auth.HMAC (
     AuthHmacAccount
   , AuthHmacSession
   , AuthHmacData
-  , Settings(..)
-  , defaultSettings
+
+  , AuthHmacSettings(..)
+
   , defaultAuthHandler
   ) where
 

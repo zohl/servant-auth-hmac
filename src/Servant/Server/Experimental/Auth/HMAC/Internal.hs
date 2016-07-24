@@ -6,6 +6,8 @@
 {-# LANGUAGE KindSignatures       #-}
 {-# LANGUAGE OverloadedStrings    #-}
 {-# LANGUAGE RecordWildCards      #-}
+{-# LANGUAGE TypeOperators        #-}
+{-# LANGUAGE PolyKinds            #-}
 
 {-|
   Module:      Servant.Server.Experimental.Auth.Cookie.Internal
@@ -24,17 +26,21 @@ module Servant.Server.Experimental.Auth.HMAC.Internal where
 import Control.Applicative
 import Control.Exception (Exception)
 import Control.Monad (when)
-import Control.Monad.Catch (MonadThrow, throwM)
+import Control.Monad.Catch (MonadThrow, throwM, catch)
 import Control.Monad.IO.Class
 import Data.Attoparsec.ByteString
 import Data.Attoparsec.ByteString.Char8 (char)
 import Data.ByteString (ByteString)
 import Data.ByteString.Lazy (toStrict, fromStrict)
 import Data.ByteString.Lazy.Builder (toLazyByteString)
+import Data.Default
 import Data.Maybe (isNothing, fromJust)
 import Data.Serialize (Serialize, put, get)
-import Data.Time.Clock (UTCTime, getCurrentTime, addUTCTime)
+import Data.String
+import Data.Time.Clock (UTCTime, getCurrentTime, addUTCTime, NominalDiffTime)
+import Data.Time.Clock.POSIX (posixSecondsToUTCTime)
 import Data.Typeable
+import Debug.Trace
 import GHC.TypeLits (Symbol)
 import Network.HTTP.Types.Header (hWWWAuthenticate, hAuthorization)
 import Network.Wai (Request, requestHeaders)
@@ -46,10 +52,9 @@ import Servant.API.ResponseHeaders (AddHeader)
 import Servant.Server (ServantErr(..), err401, err403, errBody, Handler)
 import Servant.Server.Experimental.Auth (AuthHandler, AuthServerData, mkAuthHandler)
 import qualified Data.ByteArray as BA
-import qualified Data.ByteString as BS (length, splitAt, concat, pack)
+import qualified Data.ByteString as BS (length, splitAt, concat, pack, unpack)
 import qualified Data.ByteString.Base64 as Base64 (encode, decode)
-import qualified Data.ByteString.Char8 as BS8
-
+import qualified Data.ByteString.Char8  as BSC8
 
 -- | A type family that maps user-defined account type to
 --   AuthServerData. This should be instantiated as the following:
@@ -65,44 +70,59 @@ type family AuthHmacAccount
 -- @
 type family AuthHmacSession
 
+
 type AuthHmacData = (AuthHmacAccount, AuthHmacSession)
-type instance AuthServerData (AuthProtect "hmac-auth") = AuthHmacData
 
+type instance AuthServerData (AuthProtect ("hmac-auth")) = AuthHmacData
 
-type Realm = ByteString
 
 -- | Options that determine authentication mechanisms.
-data Settings where
-  Settings :: {
-    getSession :: AuthHmacAccount -> IO (Maybe AuthHmacSession)
-  , maxAge     :: Int
-
-  , errorMessage :: Maybe String
-    -- ^ Message to show in response when the request is invalid.
-    --   If `Nothing`, default values will be used.
-
-  } -> Settings
+data AuthHmacSettings where
+  AuthHmacSettings :: {
+    ahsGetSession :: AuthHmacAccount -> IO (Maybe AuthHmacSession)
+  , ahsMaxAge     :: NominalDiffTime
+  , ahsRealm      :: Maybe ByteString
+  } -> AuthHmacSettings
 
 
--- | TODO
-defaultSettings :: Settings
-defaultSettings = Settings {
-    getSession = undefined
-  , maxAge = 300
-  , errorMessage = Nothing
-  }
+instance Default AuthHmacSettings
+  where def = AuthHmacSettings {
+      ahsGetSession = undefined
+    , ahsMaxAge = fromIntegral (10 * 60 :: Integer) -- 10 minutes
+    , ahsRealm = def
+    }
+
 
 data AuthHmacException
   = NotAuthoirized
-  | NotAccepted ByteString
+    -- ^ Thrown when there is no Authorization header in the request.
+  | BadAuthorizationHeader ByteString
+    -- ^ Thrown when failed to parse Authorization header. Argument of this
+    -- constructor: actual header.
+  | AuthorizationParameterNotFound ByteString
+    -- ^ Thrown when there is missing mandatory parameter in
+    -- Authorization header. Argument of this constructor: missing parameter name.
+  | RequestExpired UTCTime UTCTime
+    -- ^ Thrown when the request has expired. Arguments of this constructor:
+    -- expiration time, actual time
+  | SessionNotFound String
+    -- ^ Thrown when 'ahsGetSession' returns 'Nothing'. Argument of this
+    -- constructor: string representation of the account.
+  | IncorrectHash ByteString ByteString
+    -- ^ Thrown when hash in the header and hash or the request differ.
+    -- Arguments of this constructor: expected hash, actual hash.
     deriving (Eq, Show, Typeable)
 
 instance (Exception AuthHmacException)
 
 
-parseAuthentication :: Settings -> ByteString -> Maybe (Realm, ByteString, AuthHmacAccount, UTCTime)
-parseAuthentication (Settings {..}) header = either
-  (const Nothing)
+parseAuthentication :: (MonadThrow m, IsString AuthHmacAccount)
+  => AuthHmacSettings
+  -> ByteString
+  -> m (ByteString, AuthHmacAccount, UTCTime)
+
+parseAuthentication AuthHmacSettings {..} header = either
+  (\_ -> throwM $ BadAuthorizationHeader header)
   getAuthData
   (parseOnly parseHeader header) where
 
@@ -110,68 +130,80 @@ parseAuthentication (Settings {..}) header = either
     parseHeader = do
       authScheme <- string "HMAC"
       _          <- takeWhile1 isLWS
-      realm      <- param (Just "realm")
-      authParams <- many ((char ',') *> (param Nothing))
-      return $ realm:authParams
+      authParams <- param `sepBy` (char ',')
+      return $ authParams
 
     isLWS c = (c == 9 || c == 32) -- tab or space
     isNotQuote = (/= 34)          -- any but quote
 
     token = takeWhile1 (inClass "a-zA-Z_-")
 
-    param = param' . (maybe token string) where
-      param' parseName = do
-        name  <- parseName
-        _     <- (takeWhile isLWS) *> (char '=') *> (takeWhile isLWS)
-        value <- (char '"') *> (takeWhile isNotQuote) <* (char '"')
-        return (name, value)
+    param = do
+      name  <- token
+      _     <- (takeWhile isLWS) *> (char '=') *> (takeWhile isLWS)
+      value <- (char '"') *> (takeWhile isNotQuote) <* (char '"')
+      return (name, value)
 
     -- TODO CI-lookup
-    getAuthData :: [(ByteString, ByteString)] -> Maybe (Realm, ByteString, AuthHmacAccount, UTCTime)
+    getAuthData :: (MonadThrow m)
+      => [(ByteString, ByteString)]
+      -> m (ByteString, AuthHmacAccount, UTCTime)
+
     getAuthData params = do
-      realm     <- flip lookup params "realm"
-      hash      <- flip lookup params "hash"
-      accountId <- flip lookup params "id"
-      timestamp <- flip lookup params "timestamp"
+      let getParam s = maybe (throwM (AuthorizationParameterNotFound s)) return (lookup s params)
+      [hash, accountId, timestamp] <- sequence $ map getParam ["hash", "id", "timestamp"]
 
-      return $ undefined -- TODO
+      return (
+          hash
+        , fromString . BSC8.unpack $ accountId
+        , posixSecondsToUTCTime . fromIntegral $ (read . BSC8.unpack $ timestamp :: Int))
 
 
-checkHash :: Settings -> ByteString -> Request -> AuthHmacAccount -> UTCTime -> Bool
-checkHash (Settings {..}) _ _ _ _ = False -- TODO
+getRequestHash
+  :: AuthHmacSettings
+  -> Request
+  -> AuthHmacAccount
+  -> UTCTime
+  -> ByteString
+
+getRequestHash AuthHmacSettings {..} _ _ _ = "TODO"
 
 
 -- | HMAC handler
-defaultAuthHandler :: Settings -> AuthHandler Request AuthHmacData
-defaultAuthHandler settings@(Settings {..}) = mkAuthHandler handler where
+defaultAuthHandler :: (Show AuthHmacAccount, IsString AuthHmacAccount)
+  => AuthHmacSettings
+  -> AuthHandler Request AuthHmacData
+
+defaultAuthHandler settings@(AuthHmacSettings {..}) = mkAuthHandler handler where
 
   handler :: Request -> Handler AuthHmacData
-  handler req = do
-    -- TODO catch exceptions
-    result <- handler' req
-    return result
+  handler req = catch (handler' req) $ \(ex :: AuthHmacException) -> throwError $ case ex of
+    NotAuthoirized             -> err401 {
+        errHeaders = [(
+            hWWWAuthenticate
+          , maybe "HMAC" (\realm -> BS.concat ["HMAC", "realm=\"", realm, "\""]) ahsRealm)]
+      }
+    AuthorizationParameterNotFound p -> err403 {
+        errBody = fromStrict p
+      }
+    _ -> err403
 
   handler' :: (MonadThrow m, MonadIO m) => Request -> m AuthHmacData
   handler' req = do
     -- TODO CI-lookup
-    let authHeader = lookup hAuthorization (requestHeaders req)
-    when (isNothing authHeader) $ throwM NotAuthoirized
+    authHeader <- maybe (throwM NotAuthoirized) return $ lookup hAuthorization (requestHeaders req)
 
-    let authData = parseAuthentication settings $ fromJust authHeader
-    when (isNothing authData) $ throwM (NotAccepted "bad header")
+    (reqHash, account, timestamp) <- parseAuthentication settings $ authHeader
 
-    let (realm, reqHash, account, timestamp) = fromJust authData
+    currentTime <- liftIO getCurrentTime
 
-    -- TODO check realm
+    let expirationTime = addUTCTime ahsMaxAge timestamp
+    when (expirationTime > currentTime) $ throwM (RequestExpired expirationTime currentTime)
 
-    let expirationTime = addUTCTime (fromIntegral maxAge) timestamp
-    isExpired <- liftIO $ (expirationTime >) <$> getCurrentTime
-    when (isExpired) $ throwM (NotAccepted "expired request")
+    session <- liftIO $ ahsGetSession account
+    when (isNothing session) $ throwM (SessionNotFound (show account))
 
-    session <- liftIO $ getSession account
-    when (isNothing session) $ throwM (NotAccepted "account not found")
-
-    let isCorrect = checkHash settings reqHash req account timestamp
-    when (not isCorrect) $ throwM (NotAccepted "bad hash")
+    let reqHash' = getRequestHash settings req account timestamp
+    when (reqHash /= reqHash') $ throwM (IncorrectHash reqHash reqHash')
 
     return (account, fromJust session)

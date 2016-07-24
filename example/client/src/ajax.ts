@@ -76,13 +76,14 @@ let signed = (username: string) => (params: AjaxParameters): Promise<AjaxParamet
         let {method, uri, headers, data} = params;
         let hash = '';
         let timestamp = Math.floor(Date.now()/1000).toString();
+        let credentials = `HMAC realm=hash="${hash}",id="${username}",timestamp="${timestamp}"`;
 
         let newParams = {
               method: method
             , uri: uri
             , headers: headers.concat({
                   name: 'Authorization'
-                , value: `HMAC hash="${hash}",id="${username}",timestamp="${timestamp}"`
+                , value: credentials
             })
             , data: data
         }

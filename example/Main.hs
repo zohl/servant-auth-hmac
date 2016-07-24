@@ -12,6 +12,7 @@ import Control.Monad.IO.Class (liftIO)
 
 import Data.Aeson
 import Data.Maybe (fromJust, isNothing)
+import Data.Default       
 import Data.Serialize (Serialize)
 import qualified Data.Text as T (unpack)
 import Data.ByteString (ByteString)
@@ -99,7 +100,7 @@ type ExampleAPI = Get '[HTML] ByteString
                                       :> AuthProtect "hmac-auth" :> Get '[JSON] String
 
 
-server :: FilePath -> Storage -> Settings -> Server ExampleAPI
+server :: FilePath -> Storage -> AuthHmacSettings -> Server ExampleAPI
 server root storage settings = serveIndex
          :<|> serveStatic
          :<|> serveTemplates
@@ -147,7 +148,7 @@ server root storage settings = serveIndex
     False -> throwError err403 -- User can request only his own secret
 
 
-app :: FilePath -> Storage -> Settings -> Application
+app :: FilePath -> Storage -> AuthHmacSettings -> Application
 app root storage settings = serveWithContext
   (Proxy :: Proxy ExampleAPI)
   ((defaultAuthHandler settings) :. EmptyContext)
@@ -164,8 +165,8 @@ main = do
     , ("mr_baz", ("baseball" , Nothing, "Ignorance is Strength"))
     ]
 
-  let authSettings = ($ defaultSettings) $ \(Settings {..}) -> Settings {
-      getSession = (\username -> (Map.lookup username) <$> (readIORef storage))
+  let authSettings = ($ def) $ \(AuthHmacSettings {..}) -> AuthHmacSettings {
+      ahsGetSession = (\username -> (Map.lookup username) <$> (readIORef storage))
     , ..
     }
 

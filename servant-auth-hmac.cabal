@@ -29,6 +29,7 @@ library
                , attoparsec
                , base64-bytestring
                , bytestring
+               , data-default
                , cereal
                , exceptions
                , http-types
@@ -56,6 +57,7 @@ executable example
                , bytestring
                , cereal
                , containers
+               , data-default
                , mtl
                , http-media
                , random
