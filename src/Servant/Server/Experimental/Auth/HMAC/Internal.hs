@@ -28,13 +28,18 @@ import Control.Exception (Exception)
 import Control.Monad (when)
 import Control.Monad.Catch (MonadThrow, throwM, catch)
 import Control.Monad.IO.Class
+import Crypto.Hash (HashAlgorithm(..))
+import Crypto.Hash.Algorithms (SHA256)
+import Crypto.MAC.HMAC (HMAC)
 import Data.Attoparsec.ByteString
 import Data.Attoparsec.ByteString.Char8 (char)
 import Data.ByteString (ByteString)
 import Data.ByteString.Lazy (toStrict, fromStrict)
 import Data.ByteString.Lazy.Builder (toLazyByteString)
+import Data.CaseInsensitive (CI)
 import Data.Default
 import Data.Maybe (isNothing, fromJust)
+import Data.Proxy
 import Data.Serialize (Serialize, put, get)
 import Data.String
 import Data.Time.Clock (UTCTime, getCurrentTime, addUTCTime, NominalDiffTime)
@@ -55,6 +60,7 @@ import qualified Data.ByteArray as BA
 import qualified Data.ByteString as BS (length, splitAt, concat, pack, unpack)
 import qualified Data.ByteString.Base64 as Base64 (encode, decode)
 import qualified Data.ByteString.Char8  as BSC8
+import qualified Data.CaseInsensitive as CI (mk)
 
 -- | A type family that maps user-defined account type to
 --   AuthServerData. This should be instantiated as the following:
@@ -78,18 +84,22 @@ type instance AuthServerData (AuthProtect ("hmac-auth")) = AuthHmacData
 
 -- | Options that determine authentication mechanisms.
 data AuthHmacSettings where
-  AuthHmacSettings :: {
-    ahsGetSession :: AuthHmacAccount -> IO (Maybe AuthHmacSession)
-  , ahsMaxAge     :: NominalDiffTime
-  , ahsRealm      :: Maybe ByteString
+  AuthHmacSettings :: (HashAlgorithm h) => {
+    ahsGetSession      :: AuthHmacAccount -> IO (Maybe AuthHmacSession)
+  , ahsGetSessionToken :: AuthHmacSession -> Maybe ByteString
+  , ahsMaxAge          :: NominalDiffTime
+  , ahsRealm           :: Maybe ByteString
+  , ahsHashAlgorithm   :: Proxy h
   } -> AuthHmacSettings
 
 
 instance Default AuthHmacSettings
   where def = AuthHmacSettings {
       ahsGetSession = undefined
+    , ahsGetSessionToken = undefined
     , ahsMaxAge = fromIntegral (10 * 60 :: Integer) -- 10 minutes
     , ahsRealm = def
+    , ahsHashAlgorithm = Proxy :: Proxy SHA256
     }
 
 
@@ -128,7 +138,7 @@ parseAuthentication AuthHmacSettings {..} header = either
 
     parseHeader :: Parser [(ByteString, ByteString)]
     parseHeader = do
-      authScheme <- string "HMAC"
+      authScheme <- stringCI "HMAC"
       _          <- takeWhile1 isLWS
       authParams <- param `sepBy` (char ',')
       return $ authParams
@@ -144,7 +154,6 @@ parseAuthentication AuthHmacSettings {..} header = either
       value <- (char '"') *> (takeWhile isNotQuote) <* (char '"')
       return (name, value)
 
-    -- TODO CI-lookup
     getAuthData :: (MonadThrow m)
       => [(ByteString, ByteString)]
       -> m (ByteString, AuthHmacAccount, UTCTime)
@@ -159,14 +168,27 @@ parseAuthentication AuthHmacSettings {..} header = either
         , posixSecondsToUTCTime . fromIntegral $ (read . BSC8.unpack $ timestamp :: Int))
 
 
+ -- | Applies 'H.hmac' algorithm to given data.
+sign :: forall h. HashAlgorithm h
+  => Proxy h           -- ^ The hash algorithm to use
+  -> ByteString        -- ^ The key
+  -> ByteString        -- ^ The message
+  -> ByteString
+sign Proxy key msg = BA.convert (H.hmac key msg :: HMAC h)
+
+
 getRequestHash
   :: AuthHmacSettings
+  -> ByteString        -- ^ Token
   -> Request
   -> AuthHmacAccount
   -> UTCTime
   -> ByteString
 
-getRequestHash AuthHmacSettings {..} _ _ _ = "TODO"
+getRequestHash AuthHmacSettings {..} token req account timestamp = sign token $ BS.concat [
+  -- TODO
+  ]
+
 
 
 -- | HMAC handler
@@ -178,20 +200,19 @@ defaultAuthHandler settings@(AuthHmacSettings {..}) = mkAuthHandler handler wher
 
   handler :: Request -> Handler AuthHmacData
   handler req = catch (handler' req) $ \(ex :: AuthHmacException) -> throwError $ case ex of
-    NotAuthoirized             -> err401 {
+    NotAuthoirized -> err401 {
         errHeaders = [(
             hWWWAuthenticate
-          , maybe "HMAC" (\realm -> BS.concat ["HMAC", "realm=\"", realm, "\""]) ahsRealm)]
-      }
-    AuthorizationParameterNotFound p -> err403 {
-        errBody = fromStrict p
+          , maybe "HMAC" (\realm -> BS.concat ["HMAC realm=\"", realm, "\""]) ahsRealm)]
       }
     _ -> err403
 
+
   handler' :: (MonadThrow m, MonadIO m) => Request -> m AuthHmacData
   handler' req = do
-    -- TODO CI-lookup
-    authHeader <- maybe (throwM NotAuthoirized) return $ lookup hAuthorization (requestHeaders req)
+
+    authHeader <- maybe (throwM NotAuthoirized) return $
+      lookup (CI.mk hAuthorization) $ map (\(k, v) -> (CI.mk k, v)) (requestHeaders req)
 
     (reqHash, account, timestamp) <- parseAuthentication settings $ authHeader
 

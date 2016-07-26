@@ -29,6 +29,8 @@ library
                , attoparsec
                , base64-bytestring
                , bytestring
+               , case-insensitive
+               , cryptonite
                , data-default
                , cereal
                , exceptions
