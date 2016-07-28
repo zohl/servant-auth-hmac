@@ -38,6 +38,7 @@ library
                , memory
                , servant
                , servant-server
+               , string-class
                , time
                , wai
   hs-source-dirs:      src
@@ -66,6 +67,7 @@ executable example
                , servant
                , servant-auth-hmac
                , servant-server
+               , string-class
                , text
                , transformers
                , unix

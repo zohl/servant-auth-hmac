@@ -12,7 +12,7 @@ import Control.Monad.IO.Class (liftIO)
 
 import Data.Aeson
 import Data.Maybe (fromJust, isNothing)
-import Data.Default       
+import Data.Default
 import Data.Serialize (Serialize)
 import qualified Data.Text as T (unpack)
 import Data.ByteString (ByteString)
@@ -59,15 +59,22 @@ import System.Random
 import Control.Monad.Trans.Except (ExceptT)
 import Servant.Server (ServantErr)
 
+import Data.String.Class (ConvStrictByteString(..))
 
 
 type Username = String
 type Password = String
 type Token = String
 type Secret = String
-type Session = (Password, Maybe Token, Secret)
 
-type Storage = IORef (Map Username Session)
+users :: [(Username, (Password, Secret))]
+users = [
+    ("mr_foo", ("password1", "War is Peace"))
+  , ("mr_bar", ("letmein"  , "Freedom is Slavery"))
+  , ("mr_baz", ("baseball" , "Ignorance is Strength"))
+  ]
+
+type Storage = IORef (Map Username Token)
 
 
 data HTML
@@ -89,7 +96,7 @@ instance FromJSON LoginArgs
 
 
 type instance AuthHmacAccount = Username
-type instance AuthHmacSession = Session
+type instance AuthHmacToken = Token
 
 type ExampleAPI = Get '[HTML] ByteString
              :<|> "static" :> Raw
@@ -124,27 +131,32 @@ server root storage settings = serveIndex
 
   serveTemplate name = return . render $ (maybe defaultPage id) (lookup name templates)
 
-  serveLogin args = getUser >>= getToken where
-    getUser = do
-      result <- liftIO $ (Map.lookup (username args) <$> (readIORef storage))
+  serveLogin args = serve' where
+
+    serve' = case isValidUser of
+      True  -> liftIO $ getToken
+      False -> throwError err403
+
+    isValidUser = maybe False
+      (\(password', _) -> password' == (password args))
+      (lookup (username args) users)
+
+    getToken :: IO String
+    getToken = do
+      result <- (Map.lookup (username args)) <$> (readIORef storage)
       case result of
-        Just (password', token, _) -> case (password' == (password args)) of
-          True -> return token
-          False -> throwError err403
-        Nothing -> throwError err403
+        -- TODO stopped here
 
-    getToken (Just token) = return token
-    getToken Nothing = do
-      token <- liftIO $ (take 16 . randomRs ('A', 'Z')) <$> getStdGen
-      liftIO $ modifyIORef
-        storage
-        (Map.adjust (\(password', _, secret) -> (password', Just token, secret)) (username args))
-
+    mkToken :: IO String
+    mkToken = do
+      token <- (take 16 . randomRs ('A', 'Z')) <$> getStdGen
+      modifyIORef storage (Map.adjust (\_ -> token) (username args))
       return token
 
-  serveSecret :: Username -> (Username, Session) -> ExceptT ServantErr IO String
-  serveSecret username' (username'', (_, _, secret)) = case (username' == username'') of
-    True  -> return secret
+
+  serveSecret :: Username -> (Username, Token) -> ExceptT ServantErr IO String
+  serveSecret username' (username'', _) = case (username' == username'') of
+    True  -> return "TODO secret"
     False -> throwError err403 -- User can request only his own secret
 
 
@@ -159,14 +171,10 @@ main :: IO ()
 main = do
   root <- (++ "/example/client/result/static") <$> getWorkingDirectory
 
-  storage <- newIORef $ Map.fromList [
-      ("mr_foo", ("password1", Nothing, "War is Peace"))
-    , ("mr_bar", ("letmein"  , Nothing, "Freedom is Slavery"))
-    , ("mr_baz", ("baseball" , Nothing, "Ignorance is Strength"))
-    ]
+  storage <- newIORef $ Map.fromList []
 
   let authSettings = ($ def) $ \(AuthHmacSettings {..}) -> AuthHmacSettings {
-      ahsGetSession = (\username -> (Map.lookup username) <$> (readIORef storage))
+      ahsGetToken = (\username -> (Map.lookup username) <$> (readIORef storage))
     , ..
     }
 

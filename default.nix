@@ -2,7 +2,8 @@
 , blaze-html, blaze-markup, bytestring, case-insensitive, cereal
 , containers, cryptonite, data-default, deepseq, exceptions
 , http-media, http-types, HUnit, memory, mtl, random, servant
-, servant-server, stdenv, text, time, transformers, unix, wai, warp
+, servant-server, stdenv, string-class, text, time, transformers
+, unix, wai, warp
 }:
 mkDerivation {
   pname = "servant-auth-hmac";
@@ -12,8 +13,8 @@ mkDerivation {
   isExecutable = true;
   libraryHaskellDepends = [
     attoparsec base base64-bytestring bytestring case-insensitive
-    cereal data-default exceptions http-types memory servant
-    servant-server time wai
+    cereal cryptonite data-default exceptions http-types memory servant
+    servant-server string-class time wai
   ];
   executableHaskellDepends = [
     aeson base blaze-html blaze-markup bytestring cereal containers

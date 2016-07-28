@@ -12,7 +12,7 @@
 
 module Servant.Server.Experimental.Auth.HMAC (
     AuthHmacAccount
-  , AuthHmacSession
+  , AuthHmacToken
   , AuthHmacData
 
   , AuthHmacSettings(..)

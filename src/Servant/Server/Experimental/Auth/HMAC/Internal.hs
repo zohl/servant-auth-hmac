@@ -30,9 +30,9 @@ import Control.Monad.Catch (MonadThrow, throwM, catch)
 import Control.Monad.IO.Class
 import Crypto.Hash (HashAlgorithm(..))
 import Crypto.Hash.Algorithms (SHA256)
-import Crypto.MAC.HMAC (HMAC)
+import Crypto.MAC.HMAC (hmac, HMAC)
 import Data.Attoparsec.ByteString
-import Data.Attoparsec.ByteString.Char8 (char)
+import Data.Attoparsec.ByteString.Char8 (char, stringCI)
 import Data.ByteString (ByteString)
 import Data.ByteString.Lazy (toStrict, fromStrict)
 import Data.ByteString.Lazy.Builder (toLazyByteString)
@@ -41,14 +41,15 @@ import Data.Default
 import Data.Maybe (isNothing, fromJust)
 import Data.Proxy
 import Data.Serialize (Serialize, put, get)
-import Data.String
+import Data.String.Class (ConvStrictByteString(..))
 import Data.Time.Clock (UTCTime, getCurrentTime, addUTCTime, NominalDiffTime)
-import Data.Time.Clock.POSIX (posixSecondsToUTCTime)
+import Data.Time.Clock.POSIX (posixSecondsToUTCTime, utcTimeToPOSIXSeconds)
 import Data.Typeable
 import Debug.Trace
 import GHC.TypeLits (Symbol)
-import Network.HTTP.Types.Header (hWWWAuthenticate, hAuthorization)
-import Network.Wai (Request, requestHeaders)
+import Network.HTTP.Types.Header (Header, HeaderName, hWWWAuthenticate, hAuthorization)
+import Network.HTTP.Types.Method (Method)
+import Network.Wai (Request(..), requestHeaders)
 import Prelude hiding (takeWhile)
 import Servant (addHeader, Proxy(..))
 import Servant (throwError)
@@ -57,7 +58,7 @@ import Servant.API.ResponseHeaders (AddHeader)
 import Servant.Server (ServantErr(..), err401, err403, errBody, Handler)
 import Servant.Server.Experimental.Auth (AuthHandler, AuthServerData, mkAuthHandler)
 import qualified Data.ByteArray as BA
-import qualified Data.ByteString as BS (length, splitAt, concat, pack, unpack)
+import qualified Data.ByteString as BS
 import qualified Data.ByteString.Base64 as Base64 (encode, decode)
 import qualified Data.ByteString.Char8  as BSC8
 import qualified Data.CaseInsensitive as CI (mk)
@@ -69,15 +70,15 @@ import qualified Data.CaseInsensitive as CI (mk)
 -- @
 type family AuthHmacAccount
 
--- | A type family that maps user-defined session type to
+-- | A type family that maps user-defined token type to
 --   AuthServerData. This should be instantiated as the following:
 -- @
---   type instance AuthHmacSession = UserDefinedType
+--   type instance AuthHmacToken = UserDefinedType
 -- @
-type family AuthHmacSession
+type family AuthHmacToken
 
 
-type AuthHmacData = (AuthHmacAccount, AuthHmacSession)
+type AuthHmacData = (AuthHmacAccount, AuthHmacToken)
 
 type instance AuthServerData (AuthProtect ("hmac-auth")) = AuthHmacData
 
@@ -85,21 +86,21 @@ type instance AuthServerData (AuthProtect ("hmac-auth")) = AuthHmacData
 -- | Options that determine authentication mechanisms.
 data AuthHmacSettings where
   AuthHmacSettings :: (HashAlgorithm h) => {
-    ahsGetSession      :: AuthHmacAccount -> IO (Maybe AuthHmacSession)
-  , ahsGetSessionToken :: AuthHmacSession -> Maybe ByteString
-  , ahsMaxAge          :: NominalDiffTime
-  , ahsRealm           :: Maybe ByteString
-  , ahsHashAlgorithm   :: Proxy h
+    ahsGetToken      :: AuthHmacAccount -> IO (Maybe AuthHmacToken)
+  , ahsMaxAge        :: NominalDiffTime
+  , ahsRealm         :: Maybe ByteString
+  , ahsHashAlgorithm :: Proxy h
+  , ahsHeaderFilter  :: HeaderName -> Bool
   } -> AuthHmacSettings
 
 
 instance Default AuthHmacSettings
   where def = AuthHmacSettings {
-      ahsGetSession = undefined
-    , ahsGetSessionToken = undefined
+      ahsGetToken = undefined
     , ahsMaxAge = fromIntegral (10 * 60 :: Integer) -- 10 minutes
     , ahsRealm = def
     , ahsHashAlgorithm = Proxy :: Proxy SHA256
+    , ahsHeaderFilter = ( == "Content-Type")
     }
 
 
@@ -115,8 +116,8 @@ data AuthHmacException
   | RequestExpired UTCTime UTCTime
     -- ^ Thrown when the request has expired. Arguments of this constructor:
     -- expiration time, actual time
-  | SessionNotFound String
-    -- ^ Thrown when 'ahsGetSession' returns 'Nothing'. Argument of this
+  | TokenNotFound ByteString
+    -- ^ Thrown when 'ahsGetToken' returns 'Nothing'. Argument of this
     -- constructor: string representation of the account.
   | IncorrectHash ByteString ByteString
     -- ^ Thrown when hash in the header and hash or the request differ.
@@ -126,7 +127,7 @@ data AuthHmacException
 instance (Exception AuthHmacException)
 
 
-parseAuthentication :: (MonadThrow m, IsString AuthHmacAccount)
+parseAuthentication :: (MonadThrow m, ConvStrictByteString AuthHmacAccount)
   => AuthHmacSettings
   -> ByteString
   -> m (ByteString, AuthHmacAccount, UTCTime)
@@ -164,7 +165,7 @@ parseAuthentication AuthHmacSettings {..} header = either
 
       return (
           hash
-        , fromString . BSC8.unpack $ accountId
+        , fromStrictByteString accountId
         , posixSecondsToUTCTime . fromIntegral $ (read . BSC8.unpack $ timestamp :: Int))
 
 
@@ -174,25 +175,35 @@ sign :: forall h. HashAlgorithm h
   -> ByteString        -- ^ The key
   -> ByteString        -- ^ The message
   -> ByteString
-sign Proxy key msg = BA.convert (H.hmac key msg :: HMAC h)
+sign Proxy key msg = BA.convert (hmac key msg :: HMAC h)
 
 
-getRequestHash
-  :: AuthHmacSettings
-  -> ByteString        -- ^ Token
-  -> Request
+getRequestHash :: (ConvStrictByteString AuthHmacAccount, ConvStrictByteString AuthHmacToken)
+  => AuthHmacSettings
+  -> AuthHmacToken
   -> AuthHmacAccount
   -> UTCTime
+  -> ByteString        -- ^ URI
+  -> Method
+  -> [Header]
+  -> ByteString        -- ^ Request Body
   -> ByteString
 
-getRequestHash AuthHmacSettings {..} token req account timestamp = sign token $ BS.concat [
-  -- TODO
-  ]
+getRequestHash AuthHmacSettings {..} key account timestamp uri method headers body
+  = sign ahsHashAlgorithm (toStrictByteString key) $ BS.intercalate "\n" [
+      toStrictByteString account
+    , BSC8.pack . show . fromEnum . utcTimeToPOSIXSeconds $ timestamp
+    , uri
+    , method
+    , normalizeHeaders $ filter (\(name, _) -> ahsHeaderFilter name) headers
+    , body
+    ]
 
-
+normalizeHeaders :: [Header] -> ByteString
+normalizeHeaders = undefined -- TODO
 
 -- | HMAC handler
-defaultAuthHandler :: (Show AuthHmacAccount, IsString AuthHmacAccount)
+defaultAuthHandler :: (ConvStrictByteString AuthHmacAccount, ConvStrictByteString AuthHmacToken)
   => AuthHmacSettings
   -> AuthHandler Request AuthHmacData
 
@@ -205,7 +216,9 @@ defaultAuthHandler settings@(AuthHmacSettings {..}) = mkAuthHandler handler wher
             hWWWAuthenticate
           , maybe "HMAC" (\realm -> BS.concat ["HMAC realm=\"", realm, "\""]) ahsRealm)]
       }
-    _ -> err403
+    _ -> err403 {
+        errBody = fromStrict $ BSC8.pack $ show ex
+      }
 
 
   handler' :: (MonadThrow m, MonadIO m) => Request -> m AuthHmacData
@@ -221,10 +234,20 @@ defaultAuthHandler settings@(AuthHmacSettings {..}) = mkAuthHandler handler wher
     let expirationTime = addUTCTime ahsMaxAge timestamp
     when (expirationTime > currentTime) $ throwM (RequestExpired expirationTime currentTime)
 
-    session <- liftIO $ ahsGetSession account
-    when (isNothing session) $ throwM (SessionNotFound (show account))
+    token <- (liftIO $ ahsGetToken account)
+      >>= maybe (throwM (TokenNotFound (toStrictByteString account))) return
 
-    let reqHash' = getRequestHash settings req account timestamp
+    reqHash' <- liftIO $ getRequestHash
+      settings
+      token
+      account
+      timestamp
+      (rawPathInfo req)
+      (requestMethod req)
+      (requestHeaders req)
+      <$> (requestBody req)
+
     when (reqHash /= reqHash') $ throwM (IncorrectHash reqHash reqHash')
 
-    return (account, fromJust session)
+    return (account, token)
+
