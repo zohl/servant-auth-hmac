@@ -122,7 +122,7 @@ let app: App = (() => {
                     state['token'] = JSON.parse(xhr.response);
                     state['username'] = formData.username;
 
-                    ajax(origin)(signed(state['username'])(get('/api/secret/' + state['username'])))
+                    ajax(origin)(signed(state['username'], state['token'])(get('/api/secret/' + state['username'])))
                         .then(updateSecret)
                         .catch(xhr => {
                             console.log(xhr.response.toString());

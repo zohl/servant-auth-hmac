@@ -36,7 +36,7 @@ import Data.Attoparsec.ByteString.Char8 (char, stringCI)
 import Data.ByteString (ByteString)
 import Data.ByteString.Lazy (toStrict, fromStrict)
 import Data.ByteString.Lazy.Builder (toLazyByteString)
-import Data.CaseInsensitive (CI)
+import Data.CaseInsensitive (CI(..))
 import Data.Default
 import Data.Maybe (isNothing, fromJust)
 import Data.Proxy
@@ -62,6 +62,7 @@ import qualified Data.ByteString as BS
 import qualified Data.ByteString.Base64 as Base64 (encode, decode)
 import qualified Data.ByteString.Char8  as BSC8
 import qualified Data.CaseInsensitive as CI (mk)
+
 
 -- | A type family that maps user-defined account type to
 --   AuthServerData. This should be instantiated as the following:
@@ -197,10 +198,10 @@ getRequestHash AuthHmacSettings {..} key account timestamp uri method headers bo
     , method
     , normalizeHeaders $ filter (\(name, _) -> ahsHeaderFilter name) headers
     , body
-    ]
+    ] where
 
-normalizeHeaders :: [Header] -> ByteString
-normalizeHeaders = undefined -- TODO
+  normalizeHeaders = BS.intercalate "\n" . map (\(name, value) -> BS.concat [foldedCase name, value])
+
 
 -- | HMAC handler
 defaultAuthHandler :: (ConvStrictByteString AuthHmacAccount, ConvStrictByteString AuthHmacToken)
@@ -232,7 +233,7 @@ defaultAuthHandler settings@(AuthHmacSettings {..}) = mkAuthHandler handler wher
     currentTime <- liftIO getCurrentTime
 
     let expirationTime = addUTCTime ahsMaxAge timestamp
-    when (expirationTime > currentTime) $ throwM (RequestExpired expirationTime currentTime)
+    when (expirationTime < currentTime) $ throwM (RequestExpired expirationTime currentTime)
 
     token <- (liftIO $ ahsGetToken account)
       >>= maybe (throwM (TokenNotFound (toStrictByteString account))) return

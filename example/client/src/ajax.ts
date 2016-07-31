@@ -71,24 +71,40 @@ let del = (uri: string): AjaxParameters => ({
   });
 
 
-let signed = (username: string) => (params: AjaxParameters): Promise<AjaxParameters> => {
-    return new Promise((response, reject) => {
-        let {method, uri, headers, data} = params;
-        let hash = '';
-        let timestamp = Math.floor(Date.now()/1000).toString();
-        let credentials = `HMAC realm=hash="${hash}",id="${username}",timestamp="${timestamp}"`;
+let hmac = (key: string, message: string) => 'TODO';
 
-        let newParams = {
-              method: method
-            , uri: uri
-            , headers: headers.concat({
-                  name: 'Authorization'
-                , value: credentials
-            })
-            , data: data
-        }
-        response(newParams);
-    });
+let signed = (username: string, token: string) =>
+    (params: AjaxParameters): Promise<AjaxParameters> => {
+
+        let {method, uri, headers, data} = params;
+        let timestamp = Math.floor(Date.now()/1000).toString();
+
+        let hash = hmac(token, [
+              username
+            , (Date.now()/1000).toString()
+            , uri
+            , method
+            , headers
+                .map(h => h.name + h.value)
+                .join('\n')
+            , data
+            ].join('\n'));
+
+        let credentials = `HMAC hash="${hash}",id="${username}",timestamp="${timestamp}"`;
+
+        return new Promise((response, reject) => {
+
+            let newParams = {
+                  method: method
+                , uri: uri
+                , headers: headers.concat({
+                      name: 'Authorization'
+                    , value: credentials
+                })
+                , data: data
+            }
+            response(newParams);
+        });
 };
 
 

@@ -60,6 +60,7 @@ import Control.Monad.Trans.Except (ExceptT)
 import Servant.Server (ServantErr)
 
 import Data.String.Class (ConvStrictByteString(..))
+import Debug.Trace
 
 
 type Username = String
@@ -142,15 +143,12 @@ server root storage settings = serveIndex
       (lookup (username args) users)
 
     getToken :: IO String
-    getToken = do
-      result <- (Map.lookup (username args)) <$> (readIORef storage)
-      case result of
-        -- TODO stopped here
+    getToken = (maybe mkToken return) =<< ((Map.lookup (username args)) <$> (readIORef storage))
 
     mkToken :: IO String
     mkToken = do
       token <- (take 16 . randomRs ('A', 'Z')) <$> getStdGen
-      modifyIORef storage (Map.adjust (\_ -> token) (username args))
+      modifyIORef storage (Map.insert (username args) token)
       return token
 
 
@@ -174,7 +172,7 @@ main = do
   storage <- newIORef $ Map.fromList []
 
   let authSettings = ($ def) $ \(AuthHmacSettings {..}) -> AuthHmacSettings {
-      ahsGetToken = (\username -> (Map.lookup username) <$> (readIORef storage))
+      ahsGetToken = \username -> (Map.lookup username) <$> (readIORef storage)
     , ..
     }
 
