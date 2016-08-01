@@ -1,4 +1,6 @@
 import * as promise from './promise';
+import {hmac} from './crypto';
+
 
 type Method = 'GET' | 'POST' | 'PUT' | 'DELETE';
 
@@ -71,15 +73,23 @@ let del = (uri: string): AjaxParameters => ({
   });
 
 
-let hmac = (key: string, message: string) => 'TODO';
-
 let signed = (username: string, token: string) =>
     (params: AjaxParameters): Promise<AjaxParameters> => {
 
         let {method, uri, headers, data} = params;
         let timestamp = Math.floor(Date.now()/1000).toString();
 
-        let hash = hmac(token, [
+        let processHash = hash => ({
+              method: method
+            , uri: uri
+            , headers: headers.concat({
+                  name: 'Authorization'
+                , value: `HMAC hash="${hash}",id="${username}",timestamp="${timestamp}"`
+                })
+            , data: data
+            });
+
+        let makeHash = () => hmac(token, [
               username
             , (Date.now()/1000).toString()
             , uri
@@ -90,22 +100,10 @@ let signed = (username: string, token: string) =>
             , data
             ].join('\n'));
 
-        let credentials = `HMAC hash="${hash}",id="${username}",timestamp="${timestamp}"`;
+        return promise.fmap(processHash)(makeHash());
+    };
 
-        return new Promise((response, reject) => {
 
-            let newParams = {
-                  method: method
-                , uri: uri
-                , headers: headers.concat({
-                      name: 'Authorization'
-                    , value: credentials
-                })
-                , data: data
-            }
-            response(newParams);
-        });
-};
 
 
 export {ajax, get, post, put, del, signed};
