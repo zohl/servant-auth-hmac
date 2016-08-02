@@ -124,8 +124,8 @@ let app: App = (() => {
 
                     ajax(origin)(signed(state['username'], state['token'])(get('/api/secret/' + state['username'])))
                         .then(updateSecret)
-                        .catch(xhr => {
-                            console.log(xhr.response.toString());
+                        .catch(err => {
+                            console.log(err);
                             domFeedback.innerHTML = 'The secret is not available';
                         });
                 };

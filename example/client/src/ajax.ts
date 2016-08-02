@@ -84,20 +84,21 @@ let signed = (username: string, token: string) =>
             , uri: uri
             , headers: headers.concat({
                   name: 'Authorization'
-                , value: `HMAC hash="${hash}",id="${username}",timestamp="${timestamp}"`
+                , value: `HMAC hash="${window.btoa(hash)}",id="${username}",timestamp="${timestamp}"`
                 })
             , data: data
             });
 
         let makeHash = () => hmac(token, [
-              username
-            , (Date.now()/1000).toString()
-            , uri
-            , method
-            , headers
-                .map(h => h.name + h.value)
-                .join('\n')
-            , data
+            'TEST'
+            //   username
+            // , (Date.now()/1000).toString()
+            // , uri
+            // , method
+            // , headers
+            //     .map(h => h.name + h.value)
+            //     .join('\n')
+            // , data
             ].join('\n'));
 
         return promise.fmap(processHash)(makeHash());

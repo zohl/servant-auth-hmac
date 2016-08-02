@@ -192,12 +192,13 @@ getRequestHash :: (ConvStrictByteString AuthHmacAccount, ConvStrictByteString Au
 
 getRequestHash AuthHmacSettings {..} key account timestamp uri method headers body
   = sign ahsHashAlgorithm (toStrictByteString key) $ BS.intercalate "\n" [
-      toStrictByteString account
-    , BSC8.pack . show . fromEnum . utcTimeToPOSIXSeconds $ timestamp
-    , uri
-    , method
-    , normalizeHeaders $ filter (\(name, _) -> ahsHeaderFilter name) headers
-    , body
+    "TEST"
+    --   toStrictByteString account
+    -- , BSC8.pack . show . fromEnum . utcTimeToPOSIXSeconds $ timestamp
+    -- , uri
+    -- , method
+    -- , normalizeHeaders $ filter (\(name, _) -> ahsHeaderFilter name) headers
+    -- , body
     ] where
 
   normalizeHeaders = BS.intercalate "\n" . map (\(name, value) -> BS.concat [foldedCase name, value])
@@ -238,7 +239,7 @@ defaultAuthHandler settings@(AuthHmacSettings {..}) = mkAuthHandler handler wher
     token <- (liftIO $ ahsGetToken account)
       >>= maybe (throwM (TokenNotFound (toStrictByteString account))) return
 
-    reqHash' <- liftIO $ getRequestHash
+    reqHash' <- liftIO $ Base64.encode <$> getRequestHash
       settings
       token
       account
