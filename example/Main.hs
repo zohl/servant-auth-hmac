@@ -151,11 +151,10 @@ server root storage settings = serveIndex
       modifyIORef storage (Map.insert (username args) token)
       return token
 
-
   serveSecret :: Username -> (Username, Token) -> ExceptT ServantErr IO String
-  serveSecret username' (username'', _) = case (username' == username'') of
-    True  -> return "TODO secret"
-    False -> throwError err403 -- User can request only his own secret
+  serveSecret username' (username'', _) = do
+    when (username' /= username'') $ throwError err403 -- User can request only his own secret
+    maybe (throwError err404) (\(_, secret') -> return secret') (lookup username' users)
 
 
 app :: FilePath -> Storage -> AuthHmacSettings -> Application

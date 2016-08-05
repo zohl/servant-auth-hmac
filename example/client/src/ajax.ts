@@ -90,22 +90,19 @@ let signed = (username: string, token: string) =>
             });
 
         let makeHash = () => hmac(token, [
-            'TEST'
-            //   username
-            // , (Date.now()/1000).toString()
-            // , uri
-            // , method
-            // , headers
-            //     .map(h => h.name + h.value)
-            //     .join('\n')
-            // , data
+              username
+            , timestamp
+            , uri
+            , method
+            , headers
+                .map(h => h.name + h.value)
+                .sort()
+                .join('\n')
+            , data
             ].join('\n'));
 
         return promise.fmap(processHash)(makeHash());
     };
-
-
-
 
 export {ajax, get, post, put, del, signed};
 

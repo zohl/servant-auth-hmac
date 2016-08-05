@@ -6,5 +6,5 @@ Authentication via hashed message code (HMAC) based on [RFC1945](https://tools.i
 ##Status
 The library is under development.
 
-At the moment here is a project skeleton.
+At the moment here is a working prototype.
 Further development will proceed.

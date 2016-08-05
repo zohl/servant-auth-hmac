@@ -23,7 +23,6 @@ flag dev
 library
   exposed-modules:
     Servant.Server.Experimental.Auth.HMAC
-    Servant.Server.Experimental.Auth.HMAC.Internal
 
   build-depends: base == 4.9.*
                , attoparsec
