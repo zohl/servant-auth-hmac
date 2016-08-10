@@ -1,9 +1,9 @@
 { mkDerivation, aeson, attoparsec, base, base64-bytestring
 , blaze-html, blaze-markup, bytestring, case-insensitive, cereal
-, containers, cryptonite, data-default, deepseq, exceptions
-, http-media, http-types, HUnit, memory, mtl, random, servant
-, servant-server, stdenv, string-class, text, time, transformers
-, unix, wai, warp
+, containers, cryptonite, data-default, deepseq, exceptions, hspec
+, http-media, http-types, memory, mtl, QuickCheck, random, servant
+, servant-blaze, servant-server, stdenv, string-class, text, time
+, transformers, unix, wai, warp
 }:
 mkDerivation {
   pname = "servant-auth-hmac";
@@ -18,11 +18,12 @@ mkDerivation {
   ];
   executableHaskellDepends = [
     aeson base blaze-html blaze-markup bytestring cereal containers
-    data-default http-media mtl random servant servant-server text
-    transformers unix wai warp
+    data-default http-media mtl random servant servant-blaze
+    servant-server string-class text transformers unix wai warp
   ];
   testHaskellDepends = [
-    base bytestring cereal cryptonite deepseq HUnit servant-server time
+    base bytestring cereal cryptonite deepseq hspec QuickCheck
+    servant-server time
   ];
   license = stdenv.lib.licenses.gpl3;
 }

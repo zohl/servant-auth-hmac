@@ -21,6 +21,7 @@ flag dev
   default:            False
 
 library
+  hs-source-dirs:  src
   exposed-modules:
     Servant.Server.Experimental.Auth.HMAC
 
@@ -40,7 +41,6 @@ library
                , string-class
                , time
                , wai
-  hs-source-dirs:      src
   default-language:    Haskell2010
 
   if flag(dev)
@@ -50,8 +50,9 @@ library
 
 
 executable example
-  main-is:             Main.hs
-  other-extensions:    DataKinds, TypeFamilies, DeriveGeneric, TypeOperators
+  hs-source-dirs:     example/server
+  main-is:            Example.hs
+  other-extensions:   DataKinds, TypeFamilies, DeriveGeneric, TypeOperators
   build-depends: base == 4.9.*
                , aeson
                , blaze-html
@@ -65,6 +66,7 @@ executable example
                , random
                , servant
                , servant-auth-hmac
+               , servant-blaze
                , servant-server
                , string-class
                , text
@@ -72,7 +74,6 @@ executable example
                , unix
                , wai
                , warp
-  hs-source-dirs:      example
   default-language:    Haskell2010
 
   if flag(dev)
@@ -84,8 +85,8 @@ executable example
 test-suite tests
   type:           exitcode-stdio-1.0
 
-  hs-source-dirs: tests
-  main-is:        Main.hs
+  hs-source-dirs: example/server
+  main-is:        Test.hs
 
   extensions: NamedFieldPuns
 
@@ -94,7 +95,8 @@ test-suite tests
                , cereal
                , cryptonite
                , deepseq
-               , HUnit
+               , hspec
+               , QuickCheck
                , servant-auth-hmac
                , servant-server
                , time
