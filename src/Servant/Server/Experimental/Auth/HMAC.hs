@@ -28,7 +28,7 @@ module Servant.Server.Experimental.Auth.HMAC (
   , defaultAuthHandler
 
   , AuthHmacException(..)
-  , parseAuthentication
+  , parseAuthorization
   , getRequestHash
   ) where
 
@@ -138,18 +138,18 @@ data AuthHmacException
 instance (Exception AuthHmacException)
 
 
-parseAuthentication :: (MonadThrow m, ConvStrictByteString AuthHmacAccount)
+parseAuthorization :: (MonadThrow m, ConvStrictByteString AuthHmacAccount)
   => AuthHmacSettings
   -> ByteString
   -> m (ByteString, AuthHmacAccount, UTCTime)
 
-parseAuthentication AuthHmacSettings {..} header = either
-  (\_ -> throwM $ BadAuthorizationHeader header)
+parseAuthorization AuthHmacSettings {..} hdr = either
+  (\_ -> throwM $ BadAuthorizationHeader hdr)
   getAuthData
-  (parseOnly parseHeader header) where
+  (parseOnly header hdr) where
 
-    parseHeader :: Parser [(ByteString, ByteString)]
-    parseHeader = do
+    header :: Parser [(ByteString, ByteString)]
+    header = do
       authScheme <- stringCI "HMAC"
       _          <- takeWhile1 isLWS
       authParams <- param `sepBy` (char ',')
@@ -180,7 +180,7 @@ parseAuthentication AuthHmacSettings {..} header = either
         , posixSecondsToUTCTime . fromIntegral $ (read . BSC8.unpack $ timestamp :: Int))
 
 
- -- | Applies 'H.hmac' algorithm to given data.
+
 sign :: forall h. HashAlgorithm h
   => Proxy h           -- ^ The hash algorithm to use
   -> ByteString        -- ^ The key
@@ -238,7 +238,7 @@ defaultAuthHandler settings@(AuthHmacSettings {..}) = mkAuthHandler handler wher
     authHeader <- maybe (throwM NotAuthoirized) return $
       lookup (CI.mk hAuthorization) $ map (\(k, v) -> (CI.mk k, v)) (requestHeaders req)
 
-    (reqHash, account, timestamp) <- parseAuthentication settings $ authHeader
+    (reqHash, account, timestamp) <- parseAuthorization settings $ authHeader
 
     currentTime <- liftIO getCurrentTime
 

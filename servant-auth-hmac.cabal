@@ -91,15 +91,28 @@ test-suite tests
   extensions: NamedFieldPuns
 
   build-depends: base == 4.9.*
-               , bytestring
-               , cereal
-               , cryptonite
-               , deepseq
-               , hspec
                , QuickCheck
+               , aeson
+               , bytestring
+               , case-insensitive
+               , cereal
+               , containers
+               , cryptonite
+               , data-default
+               , deepseq
+               , hspec-wai
+               , hspec-wai-json
+               , hspec2
+               , http-types
+               , random
+               , servant
+               , servant
                , servant-auth-hmac
                , servant-server
                , time
+               , transformers
+               , wai
+               , wai-extra
 
   default-language:    Haskell2010
 

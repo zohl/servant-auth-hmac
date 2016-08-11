@@ -19,58 +19,20 @@ module AuthAPI (
 
 import Control.Monad (when)
 import Control.Monad.IO.Class (liftIO)
-
-import Data.Aeson
-import Data.Maybe (fromJust, isNothing)
-import Data.Default
-import Data.Serialize (Serialize)
-import qualified Data.Text as T (unpack)
-import Data.ByteString (ByteString)
-import Data.ByteString.Lazy (toStrict, fromStrict)
-import System.Posix.Directory (getWorkingDirectory)
-
-import Servant (
-    Proxy(..), Server, (:>), (:<|>)(..)
-  , Header, Headers, addHeader
-  , Raw
-  , Get, Post, ReqBody, Capture, FormUrlEncoded, FromFormUrlEncoded(..))
-
-import Servant.Server (
-    Context ((:.), EmptyContext)
-  , serveWithContext
-  , serve)
-
-import Servant                          (throwError)
-import Servant.API.Experimental.Auth    (AuthProtect)
-import Servant.API.ContentTypes         (Accept(..), MimeRender(..), JSON)
-import Servant.Server.Experimental.Auth (AuthHandler)
-import Servant.Server.Experimental.Auth.HMAC
-import Servant.Server (err401, err403, err404)
-import Servant.Utils.StaticFiles (serveDirectory)
-
-import Network.Wai              (Application, Request)
-import Network.Wai.Handler.Warp (run)
-
-import GHC.Generics
-
-import Network.HTTP.Media ((//), (/:))
-
-import Text.Blaze.Html5 ((!))
-import Text.Blaze.Html.Renderer.Utf8 (renderHtml)
-import qualified Text.Blaze.Html5 as H
-import qualified Text.Blaze.Html5.Attributes as A
-
-import Data.IORef (IORef, newIORef, readIORef, modifyIORef)
-
-import Data.Map (Map)
-import qualified Data.Map as Map
-
-import System.Random
 import Control.Monad.Trans.Except (ExceptT)
+import Data.Aeson
+import Data.IORef (IORef, readIORef, modifyIORef)
+import Data.Map (Map)
+import GHC.Generics
+import Servant (Server, (:>), (:<|>)(..), Get, Post, ReqBody, Capture)
+import Servant (throwError)
+import Servant.API.ContentTypes (JSON)
+import Servant.API.Experimental.Auth (AuthProtect)
 import Servant.Server (ServantErr)
-
-import Data.String.Class (ConvStrictByteString(..))
-import Debug.Trace
+import Servant.Server (err403, err404)
+import Servant.Server.Experimental.Auth.HMAC
+import System.Random
+import qualified Data.Map as Map
 
 
 type Username = String
@@ -79,14 +41,13 @@ type Token = String
 type Secret = String
 type Storage = IORef (Map Username Token)
 
-
 type instance AuthHmacAccount = Username
 type instance AuthHmacToken = Token
 
 
 data LoginArgs = LoginArgs {
-    username :: String
-  , password :: String
+    laUsername :: String
+  , laPassword :: String
   } deriving Generic
 
 instance FromJSON LoginArgs
@@ -108,27 +69,28 @@ users = [
 serveAuth :: Storage -> AuthHmacSettings -> Server AuthAPI
 serveAuth storage settings = serveLogin :<|> serveSecret where
 
-  serveLogin args = serve' where
+  serveLogin (LoginArgs {..}) = serve' where
 
     serve' = case isValidUser of
       True  -> liftIO $ getToken
       False -> throwError err403
 
     isValidUser = maybe False
-      (\(password', _) -> password' == (password args))
-      (lookup (username args) users)
+      (\(password', _) -> password' == laPassword)
+      (lookup laUsername users)
 
     getToken :: IO String
-    getToken = (maybe mkToken return) =<< ((Map.lookup (username args)) <$> (readIORef storage))
+    getToken = (maybe mkToken return) =<< ((Map.lookup laUsername) <$> (readIORef storage))
 
     mkToken :: IO String
     mkToken = do
       token <- (take 16 . randomRs ('A', 'Z')) <$> getStdGen
-      modifyIORef storage (Map.insert (username args) token)
+      modifyIORef storage (Map.insert laUsername token)
       return token
 
   serveSecret :: Username -> (Username, Token) -> ExceptT ServantErr IO String
   serveSecret username' (username'', _) = do
     when (username' /= username'') $ throwError err403 -- User can request only his own secret
     maybe (throwError err404) (\(_, secret') -> return secret') (lookup username' users)
+
 

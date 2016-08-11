@@ -61,7 +61,7 @@ main :: IO ()
 main = do
   root <- (++ "/example/client/result/static") <$> getWorkingDirectory
 
-  storage <- newIORef $ Map.fromList []
+  storage <- newIORef $ Map.empty
 
   let authSettings = ($ def) $ \(AuthHmacSettings {..}) -> AuthHmacSettings {
       ahsGetToken = \username -> (Map.lookup username) <$> (readIORef storage)
