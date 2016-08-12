@@ -12,6 +12,7 @@ module AuthAPI (
   , Token
   , Secret
   , Storage
+  , LoginArgs(..)
 
   , AuthAPI
   , serveAuth
@@ -21,6 +22,8 @@ import Control.Monad (when)
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Trans.Except (ExceptT)
 import Data.Aeson
+import Data.Aeson.Types (Options, genericParseJSON, genericToJSON, fieldLabelModifier)
+import Data.Char (isUpper, toLower)
 import Data.IORef (IORef, readIORef, modifyIORef)
 import Data.Map (Map)
 import GHC.Generics
@@ -50,7 +53,20 @@ data LoginArgs = LoginArgs {
   , laPassword :: String
   } deriving Generic
 
-instance FromJSON LoginArgs
+instance FromJSON LoginArgs where
+  parseJSON = genericParseJSON dropPrefixOptions
+
+instance ToJSON LoginArgs where
+  toJSON = genericToJSON dropPrefixOptions
+
+dropPrefix :: String -> String
+dropPrefix "" = ""
+dropPrefix (c:t)
+  | isUpper c = toLower c : t
+  | otherwise = dropPrefix t
+
+dropPrefixOptions :: Options
+dropPrefixOptions = defaultOptions { fieldLabelModifier = dropPrefix }
 
 
 type AuthAPI = "login" :> ReqBody '[JSON] LoginArgs :> Post '[JSON] String

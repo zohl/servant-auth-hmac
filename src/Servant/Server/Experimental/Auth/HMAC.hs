@@ -107,7 +107,7 @@ data AuthHmacSettings where
 
 instance Default AuthHmacSettings
   where def = AuthHmacSettings {
-      ahsGetToken = undefined
+      ahsGetToken = undefined -- TODO get rid of it
     , ahsMaxAge = fromIntegral (10 * 60 :: Integer) -- 10 minutes
     , ahsRealm = def
     , ahsHashAlgorithm = Proxy :: Proxy SHA256
@@ -226,6 +226,7 @@ defaultAuthHandler settings@(AuthHmacSettings {..}) = mkAuthHandler handler wher
         errHeaders = [(
             hWWWAuthenticate
           , maybe "HMAC" (\realm -> BS.concat ["HMAC realm=\"", realm, "\""]) ahsRealm)]
+      , errBody = fromStrict $ BSC8.pack $ show ex
       }
     _ -> err403 {
         errBody = fromStrict $ BSC8.pack $ show ex
