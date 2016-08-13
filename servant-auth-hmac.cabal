@@ -93,6 +93,7 @@ test-suite tests
   build-depends: base == 4.9.*
                , QuickCheck
                , aeson
+               , base64-bytestring
                , bytestring
                , case-insensitive
                , cereal
@@ -100,6 +101,7 @@ test-suite tests
                , cryptonite
                , data-default
                , deepseq
+               , hspec-expectations
                , hspec-wai
                , hspec-wai-json
                , hspec2
@@ -109,14 +111,16 @@ test-suite tests
                , servant
                , servant-auth-hmac
                , servant-server
+               , string-class
                , time
                , transformers
                , wai
                , wai-extra
+               , with-location
 
   default-language:    Haskell2010
 
   if flag(dev)
-    ghc-options:      -Wall -Werror
+    ghc-options:      -Wall -Werror -Wno-warnings-deprecations
   else
-    ghc-options:      -O2 -Wall
+    ghc-options:      -O2 -Wall -Wno-warnings-deprecations
