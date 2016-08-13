@@ -1,0 +1,42 @@
+language: haskell
+
+sudo: false
+
+matrix:
+  include:
+    - env: CABALVER=1.22 GHCVER=7.10.3 NODE_VERSION=4.3.1 ROLLUP_VERSION=0.31.2
+      addons: {apt: {packages: [cabal-install-1.22,ghc-7.10.3], sources: [hvr-ghc]}}
+    - env: CABALVER=1.24 GHCVER=8.0.1  NODE_VERSION=4.3.1 ROLLUP_VERSION=0.31.2
+      addons: {apt: {packages: [cabal-install-1.24,ghc-8.0.1], sources: [hvr-ghc]}}
+    - env: CABALVER=head GHCVER=head   NODE_VERSION=node  ROLLUP_VERSION=latest
+      addons: {apt: {packages: [cabal-install-head,ghc-head], sources: [hvr-ghc]}}
+
+  allow_failures:
+    - env: CABALVER=head GHCVER=head   NODE_VERSION=node  ROLLUP_VERSION=latest
+
+before_install:
+  - nvm install "$NODE_VERSION"
+  - nvm use "$NODE_VERSION"
+  - npm install -g "typescript@1.9.0-dev.20160610-1.0"
+  - npm install -g "rollup@$ROLLUP_VERSION"
+  - export PATH=/opt/ghc/$GHCVER/bin:/opt/cabal/$CABALVER/bin:$PATH
+
+install:
+   - nvm run node --version
+   - cabal --version
+   - echo "$(ghc --version) [$(ghc --print-project-git-commit-id 2> /dev/null || echo '?')]"
+   - travis_retry cabal update
+   - cabal install --only-dependencies --enable-tests
+
+script:
+  - cabal configure --enable-tests --enable-coverage -v2 -f dev
+  - cabal build
+  - cabal test --show-details=always
+  - cabal sdist
+  - cabal haddock | grep "100%" | wc -l | grep "1"
+  - ./example/client/build.sh
+
+notifications:
+  email:
+    recipients:
+      - zohl@fmap.me

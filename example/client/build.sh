@@ -1,5 +1,8 @@
-BUILD_DIR="$(pwd)/result/static";
-SOURCE_DIR="./src"
+CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BUILD_DIR="$CURRENT_DIR/result/static";
+SOURCE_DIR="$CURRENT_DIR/src"
+
+set -ev
 
 pushd "$SOURCE_DIR"
 

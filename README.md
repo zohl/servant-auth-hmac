@@ -1,5 +1,8 @@
 #servant-auth-hmac
 
+[![Build Status](https://travis-ci.org/zohl/servant-auth-hmac.svg?branch=master)](https://travis-ci.org/zohl/servant-auth-hmac)
+
+
 ##Description
 Authentication via hashed message code (HMAC) based on [RFC1945](https://tools.ietf.org/html/rfc1945#section-11).
 
