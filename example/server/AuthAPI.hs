@@ -47,7 +47,6 @@ type Storage = IORef (Map Username Token)
 type instance AuthHmacAccount = Username
 type instance AuthHmacToken = Token
 
-
 data LoginArgs = LoginArgs {
     laUsername :: String
   , laPassword :: String
@@ -73,7 +72,6 @@ type AuthAPI = "login" :> ReqBody '[JSON] LoginArgs :> Post '[JSON] String
           :<|> "secret" :> Capture "username" Username
             :> AuthProtect "hmac-auth" :> Get '[JSON] String
 
-
 users :: [(Username, (Password, Secret))]
 users = [
     ("mr_foo", ("password1", "War is Peace"))
@@ -81,9 +79,8 @@ users = [
   , ("mr_baz", ("baseball" , "Ignorance is Strength"))
   ]
 
-
-serveAuth :: Storage -> AuthHmacSettings -> Server AuthAPI
-serveAuth storage settings = serveLogin :<|> serveSecret where
+serveAuth :: Storage -> Server AuthAPI
+serveAuth storage = serveLogin :<|> serveSecret where
 
   serveLogin (LoginArgs {..}) = serve' where
 

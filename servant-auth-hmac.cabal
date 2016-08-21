@@ -30,7 +30,7 @@ library
                , base64-bytestring >= 1.0.0 && < 1.1
                , bytestring >= 0.10.8 && < 0.11
                , case-insensitive >= 1.2.0 && < 1.3
-               , cryptonite >= 0.19 && < 0.20
+               , cryptonite >= 0.17 && < 0.20
                , data-default >= 0.7.1 && < 0.8
                , cereal >= 0.5.3 && < 0.6
                , exceptions >= 0.8.3 && < 0.9
@@ -52,7 +52,6 @@ library
 executable example
   hs-source-dirs:     example/server
   main-is:            Example.hs
-  other-extensions:   DataKinds, TypeFamilies, DeriveGeneric, TypeOperators
   build-depends: base >= 4.7 && < 5.0
                , aeson >= 0.11.2 && < 0.12
                , blaze-html >= 0.8.1 && < 0.9
@@ -88,8 +87,6 @@ test-suite tests
   hs-source-dirs: example/server
   main-is:        Test.hs
 
-  extensions: NamedFieldPuns
-
   build-depends: base >= 4.7 && < 5.0
                , aeson >= 0.11.2 && < 0.12
                , base64-bytestring >= 1.0.0 && < 1.1
@@ -97,7 +94,7 @@ test-suite tests
                , case-insensitive >= 1.2.0 && < 1.3
                , cereal >= 0.5.3 && < 0.6
                , containers >= 0.5.7 && < 0.6
-               , cryptonite >= 0.19 && < 0.20
+               , cryptonite >= 0.17 && < 0.20
                , data-default >= 0.7.1 && < 0.8
                , hspec-expectations
                , hspec-wai

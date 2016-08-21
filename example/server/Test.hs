@@ -34,7 +34,7 @@ main :: IO ()
 main = hspec spec
 
 spec :: Spec
-spec = with (app def) $ do
+spec = with (app (def :: AuthHmacSettings)) $ do
 
   describe "POST /login" $ do
     let username = "mr_foo"
@@ -147,17 +147,12 @@ mkAuthHeader account hash mt = let
 app :: AuthHmacSettings -> IO Application
 app authSettings = do
   storage <- newIORef $ Map.empty
-
-  let authSettings' = ($ authSettings) $ \(AuthHmacSettings {..}) -> AuthHmacSettings {
-      ahsGetToken = \username -> (Map.lookup username) <$> (readIORef storage)
-    , ..
-    }
+  let tokenProvider username = (Map.lookup username) <$> (readIORef storage)
 
   return $ serveWithContext
     (Proxy :: Proxy AuthAPI)
-    ((defaultAuthHandler authSettings') :. EmptyContext)
-    (serveAuth storage authSettings')
-
+    ((defaultAuthHandler tokenProvider authSettings) :. EmptyContext)
+    (serveAuth storage)
 
 
 -- TODO https://github.com/hspec/hspec-wai/issues/35
@@ -183,3 +178,4 @@ shouldRespondWith' bodyMatcher response expectation = do
 
 startsWith :: BSL.ByteString -> BSL.ByteString -> Bool
 startsWith prefix s = prefix == BSL.take (BSL.length prefix) s
+

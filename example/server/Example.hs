@@ -32,12 +32,12 @@ type ExampleAPI = Get '[HTML] Markup
              :<|> "api" :> AuthAPI
 
 
-server :: FilePath -> Storage -> AuthHmacSettings -> Server ExampleAPI
-server root storage settings = serveIndex
-                          :<|> serveStatic
-                          :<|> serveTemplates
-                          :<|> serveTemplate
-                          :<|> serveAuth storage settings where
+server :: FilePath -> Storage -> Server ExampleAPI
+server root storage = serveIndex
+                 :<|> serveStatic
+                 :<|> serveTemplates
+                 :<|> serveTemplate
+                 :<|> serveAuth storage where
 
   serveIndex = return indexPage
   serveStatic = serveDirectory root
@@ -51,24 +51,18 @@ server root storage settings = serveIndex
     ]
 
 
-app :: FilePath -> Storage -> AuthHmacSettings -> Application
-app root storage settings = serveWithContext
+app :: FilePath -> Storage -> AuthTokenProvider -> AuthHmacSettings -> Application
+app root storage tokenProvider settings = serveWithContext
   (Proxy :: Proxy ExampleAPI)
-  ((defaultAuthHandler settings) :. EmptyContext)
-  (server root storage settings)
+  ((defaultAuthHandler tokenProvider settings) :. EmptyContext)
+  (server root storage)
 
 main :: IO ()
 main = do
   root <- (++ "/example/client/result/static") <$> getWorkingDirectory
-
   storage <- newIORef $ Map.empty
-
-  let authSettings = ($ def) $ \(AuthHmacSettings {..}) -> AuthHmacSettings {
-      ahsGetToken = \username -> (Map.lookup username) <$> (readIORef storage)
-    , ..
-    }
-
-  run 8080 (app root storage authSettings)
+  let tokenProvider username = (Map.lookup username) <$> (readIORef storage)
+  run 8080 (app root storage tokenProvider (def::AuthHmacSettings))
 
 
 indexPage :: H.Html
