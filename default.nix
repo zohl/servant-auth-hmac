@@ -28,5 +28,5 @@ mkDerivation {
     hspec-wai http-types random servant servant-server string-class
     time transformers wai wai-extra with-location
   ];
-  license = stdenv.lib.licenses.gpl3;
+  license = stdenv.lib.licenses.bsd3;
 }

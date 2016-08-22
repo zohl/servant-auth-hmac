@@ -22,7 +22,7 @@ import Control.Monad (when)
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Trans.Except (ExceptT)
 import Data.Aeson
-import Data.Aeson.Types (Options, genericParseJSON, genericToJSON, fieldLabelModifier)
+import Data.Aeson.Types (Options, fieldLabelModifier)
 import Data.Char (isUpper, toLower)
 import Data.IORef (IORef, readIORef, modifyIORef)
 import Data.Map (Map)

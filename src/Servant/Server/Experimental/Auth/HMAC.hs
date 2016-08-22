@@ -12,7 +12,7 @@
 {-|
   Module:      Servant.Server.Experimental.Auth.HMAC
   Copyright:   (c) 2016 Al Zohali
-  License:     GPL3
+  License:     BSD3
   Maintainer:  Al Zohali <zohl@fmap.me>
   Stability:   experimental
 
@@ -48,7 +48,6 @@ import Data.ByteString.Lazy (fromStrict)
 import Data.CaseInsensitive (CI(..))
 import Data.Default
 import Data.List (sort)
-import Data.Proxy (Proxy(..))
 import Data.String.Class (ConvStrictByteString(..))
 import Data.Time.Clock (UTCTime, getCurrentTime, addUTCTime, NominalDiffTime)
 import Data.Time.Clock.POSIX (posixSecondsToUTCTime, utcTimeToPOSIXSeconds)

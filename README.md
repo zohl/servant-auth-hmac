@@ -1,7 +1,7 @@
 #servant-auth-hmac
-
+[![License BSD3](https://img.shields.io/badge/license-BSD3-brightgreen.svg)](https://tldrlegal.com/license/bsd-3-clause-license-(revised))
+[![Hackage](https://img.shields.io/hackage/v/servant-auth-hmac.svg?style=flat)](https://hackage.haskell.org/package/servant-auth-hmac)
 [![Build Status](https://travis-ci.org/zohl/servant-auth-hmac.svg?branch=master)](https://travis-ci.org/zohl/servant-auth-hmac)
-
 
 ##Description
 Authentication via hashed message code (HMAC) based on [RFC1945](https://tools.ietf.org/html/rfc1945#section-11).
