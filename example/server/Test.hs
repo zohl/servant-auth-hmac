@@ -1,18 +1,19 @@
-{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE RecordWildCards   #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE FlexibleContexts  #-}
 
 import AuthAPI
 import Control.Monad (unless)
 import Data.IORef (newIORef, readIORef)
 import Data.Aeson (encode, decode)
-import Data.Default
+import Data.Default (def)
 import Data.Monoid ((<>))
 import Data.WithLocation (WithLocation)
 import Data.String.Class (ConvStrictByteString(..))
-import Data.Time.Clock
+import Data.Time.Clock (UTCTime, getCurrentTime)
 import Data.Time.Clock.POSIX (posixSecondsToUTCTime, utcTimeToPOSIXSeconds)
 import Network.Wai (Application)
-import Test.Hspec
+import Test.Hspec (Spec, hspec, describe, it)
 import Test.Hspec.Expectations (expectationFailure)
 import Test.Hspec.Wai (WaiExpectation, WaiSession, ResponseMatcher, (<:>))
 import Test.Hspec.Wai (request, matchHeaders, matchBody, shouldRespondWith, liftIO, with, get)
@@ -20,8 +21,8 @@ import Servant.Server.Experimental.Auth.HMAC
 import qualified Data.Map as Map
 import Servant (Proxy(..))
 import Servant.Server (Context ((:.), EmptyContext), serveWithContext)
-import Network.HTTP.Types
-import Network.HTTP.Types.Header (hWWWAuthenticate, hAuthorization)
+import Network.HTTP.Types (Header, methodGet, methodPost)
+import Network.HTTP.Types.Header (hWWWAuthenticate, hAuthorization, hContentType)
 import Network.Wai.Test (SResponse(..))
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as BSL

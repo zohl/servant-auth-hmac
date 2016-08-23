@@ -8,6 +8,7 @@
 {-# LANGUAGE RecordWildCards      #-}
 {-# LANGUAGE TypeOperators        #-}
 {-# LANGUAGE PolyKinds            #-}
+{-# LANGUAGE FlexibleContexts     #-}
 
 {-|
   Module:      Servant.Server.Experimental.Auth.HMAC

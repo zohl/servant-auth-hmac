@@ -36,6 +36,10 @@ script:
   - cabal haddock | grep "100%" | wc -l | grep "1"
   - ./example/client/build.sh
 
+branches:
+  only:
+  - master
+
 notifications:
   email:
     recipients:
