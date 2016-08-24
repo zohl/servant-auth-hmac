@@ -1,6 +1,7 @@
 name:                servant-auth-hmac
-version:             0.1.0.0
-synopsis:            Authentication via hashed message code (HMAC) based on RFC1945.
+version:             0.1.0.1
+synopsis:            Authentication via HMAC
+description:         Authentication via hashed message code (HMAC) based on RFC1945.
 license:             BSD3
 license-file:        LICENSE
 author:              Al Zohali
