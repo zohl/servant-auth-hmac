@@ -93,9 +93,13 @@ type instance AuthServerData (AuthProtect ("hmac-auth")) = AuthHmacData
 data AuthHmacSettings where
   AuthHmacSettings :: (HashAlgorithm h) => {
     ahsMaxAge        :: NominalDiffTime
+    -- ^ Time interval within which a request will be valid.
   , ahsRealm         :: Maybe ByteString
+    -- ^ Name of authentication realm.
   , ahsHashAlgorithm :: Proxy h
+    -- ^ Name of a hash algorithm.
   , ahsHeaderFilter  :: HeaderName -> Bool
+    -- ^ Function to determine which headers will be used to compute signatures.
   } -> AuthHmacSettings
 
 
