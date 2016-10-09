@@ -184,6 +184,13 @@ sign :: forall h. HashAlgorithm h
   -> ByteString
 sign Proxy key msg = BA.convert (hmac key msg :: HMAC h)
 
+getRequestBody :: Request -> IO ByteString
+getRequestBody request = BS.concat <$> getChunks where
+  getChunks = requestBody request >>= \result ->
+    if (result == BS.empty)
+    then return []
+    else (result:) <$> getChunks
+
 -- | Generate hash based on request and account data.
 getRequestHash :: (ConvStrictByteString AuthHmacAccount, ConvStrictByteString AuthHmacToken)
   => AuthHmacSettings
@@ -253,7 +260,7 @@ defaultAuthHandler tokenProvider settings@(AuthHmacSettings {..}) = mkAuthHandle
       (rawPathInfo req)
       (requestMethod req)
       (requestHeaders req)
-      <$> (requestBody req)
+      <$> (getRequestBody req)
 
     when (reqHash /= reqHash') $ throwM (IncorrectHash reqHash reqHash')
 
