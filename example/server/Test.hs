@@ -82,7 +82,9 @@ spec = with (app (def :: AuthHmacSettings)) $ do
     it "rejects an expired request" $ do
       let hdr = mkAuthHeader "" "" $ Just (posixSecondsToUTCTime 0)
       let r = request methodGet ("/secret/" <> username) [hdr] ""
-      r  -: shouldRespondWith' (startsWith "RequestExpired ") :- 403
+      r  `shouldRespondWith` 403 {
+          matchBody = MatchBody $ \_ -> startsWith "RequestExpired "
+        }
 
 
     it "rejects a request without non-existing token" $ do
@@ -102,7 +104,9 @@ spec = with (app (def :: AuthHmacSettings)) $ do
       hdr <- liftIO $ mkAuthHeader (BSC8.unpack username) "" . Just <$> getCurrentTime
       let r = request methodGet ("/secret/" <> username) [hdr] ""
 
-      r -: shouldRespondWith' (startsWith "IncorrectHash ") :- 403
+      r `shouldRespondWith` 403 {
+          matchBody = MatchBody $ \_ -> startsWith "IncorrectHash "
+        }
 
 
     it "accepts a request with correct signature" $ do
@@ -128,7 +132,9 @@ spec = with (app (def :: AuthHmacSettings)) $ do
       let hdr = mkAuthHeader (BSC8.unpack username) hash (Just currentTime)
       let r = request methodGet ("/secret/" <> username) [hdr] ""
 
-      r -: shouldRespondWith' (startsWith "\"Freedom is Slavery\"") :- 200
+      r `shouldRespondWith` 200 {
+          matchBody = MatchBody $ \_ -> startsWith "\"Freedom is Slavery\""
+        }
 
 
 mkAuthHeader :: AuthHmacAccount -> BS.ByteString -> Maybe UTCTime -> Header
@@ -154,28 +160,6 @@ app authSettings = do
     (Proxy :: Proxy AuthAPI)
     ((defaultAuthHandler tokenProvider authSettings) :. EmptyContext)
     (serveAuth storage)
-
-
--- TODO https://github.com/hspec/hspec-wai/issues/35
-infixr 0 -:, :-
-data Infix f y = f :- y
-
-(-:) :: a -> Infix (a -> b -> c) b -> c
-x -:f:- y = x `f` y
-
-shouldRespondWith' :: WithLocation(
-  (BSLC8.ByteString -> Bool)
-  -> WaiSession SResponse
-  -> ResponseMatcher
-  -> WaiExpectation)
-
-shouldRespondWith' bodyMatcher response expectation = do
-  r@(SResponse {..}) <- response
-  liftIO $ unless (bodyMatcher simpleBody) $ expectationFailure $ unlines [
-     "match failed for the body:"
-    , BSLC8.unpack simpleBody
-    ]
-  (return r) `shouldRespondWith` expectation
 
 startsWith :: BSL.ByteString -> BSL.ByteString -> Bool
 startsWith prefix s = prefix == BSL.take (BSL.length prefix) s

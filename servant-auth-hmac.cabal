@@ -25,22 +25,22 @@ library
   exposed-modules:
     Servant.Server.Experimental.Auth.HMAC
 
-  build-depends: base >= 4.7 && < 5.0
-               , attoparsec >= 0.13.0 && < 0.14
-               , base64-bytestring >= 1.0.0 && < 1.1
-               , bytestring >= 0.10.8 && < 0.11
-               , case-insensitive >= 1.2.0 && < 1.3
-               , cryptonite >= 0.20 && < 0.21
-               , data-default >= 0.7.1 && < 0.8
-               , exceptions >= 0.8.3 && < 0.9
-               , http-types >= 0.9.1 && < 0.10
-               , memory >= 0.13 && < 0.14
-               , servant >= 0.8.1 && < 0.9
-               , servant-server >= 0.8.1 && < 0.9
-               , string-class >= 0.1.6 && < 0.2
-               , time >= 1.6.0 && < 1.7
-               , transformers >= 0.5.2 && < 0.6
-               , wai >= 3.2.1 && < 3.3
+  build-depends: base
+               , attoparsec
+               , base64-bytestring
+               , bytestring
+               , case-insensitive
+               , cryptonite
+               , data-default
+               , exceptions
+               , http-types
+               , memory
+               , servant
+               , servant-server
+               , string-class
+               , time
+               , transformers
+               , wai
   default-language:    Haskell2010
 
   if flag(dev)
@@ -52,27 +52,27 @@ library
 executable example
   hs-source-dirs:     example/server
   main-is:            Example.hs
-  build-depends: base >= 4.7 && < 5.0
-               , aeson >= 0.11.2 && < 0.12
-               , blaze-html >= 0.8.1 && < 0.9
-               , blaze-markup >= 0.7.1 && < 0.8
-               , bytestring >= 0.10.8 && < 0.11
-               , cereal >= 0.5.3 && < 0.6
-               , containers >= 0.5.7 && < 0.6
-               , data-default >= 0.7.1 && < 0.8
-               , mtl >= 2.2.1 && < 2.3
-               , http-media >= 0.6.4 && < 0.7
-               , random >= 1.1 && < 1.2
-               , servant >= 0.8.1 && < 0.9
+  build-depends: base
+               , aeson
+               , blaze-html
+               , blaze-markup
+               , bytestring
+               , cereal
+               , containers
+               , data-default
+               , mtl
+               , http-media
+               , random
+               , servant
                , servant-auth-hmac
-               , servant-blaze >= 0.7.1 && < 0.8
-               , servant-server >= 0.8.1 && < 0.9
-               , string-class >= 0.1.6 && < 0.2
-               , text >= 1.2.2 && < 1.3
-               , transformers >= 0.5.2 && < 0.6
-               , unix >= 2.7.2 && < 2.8
-               , wai >= 3.2.1 && < 3.3
-               , warp >= 3.2.8 && < 3.3
+               , servant-blaze
+               , servant-server
+               , string-class
+               , text
+               , transformers
+               , unix
+               , wai
+               , warp
   default-language:    Haskell2010
 
   if flag(dev)
@@ -87,27 +87,27 @@ test-suite tests
   hs-source-dirs: example/server
   main-is:        Test.hs
 
-  build-depends: base >= 4.7 && < 5.0
-               , aeson >= 0.11.2 && < 0.12
-               , base64-bytestring >= 1.0.0 && < 1.1
-               , bytestring >= 0.10.8 && < 0.11
-               , case-insensitive >= 1.2.0 && < 1.3
-               , cereal >= 0.5.3 && < 0.6
-               , containers >= 0.5.7 && < 0.6
-               , cryptonite >= 0.20 && < 0.21
-               , data-default >= 0.7.1 && < 0.8
+  build-depends: base
+               , aeson
+               , base64-bytestring
+               , bytestring
+               , case-insensitive
+               , cereal
+               , containers
+               , cryptonite
+               , data-default
                , hspec-expectations
                , hspec-wai
                , hspec
-               , http-types >= 0.9.1 && < 0.10
-               , random >= 1.1 && < 1.2
-               , servant >= 0.8.1 && < 0.9
+               , http-types
+               , random
+               , servant
                , servant-auth-hmac
-               , servant-server >= 0.8.1 && < 0.9
-               , string-class >= 0.1.6 && < 0.2
-               , time >= 1.6.0 && < 1.7
-               , transformers >= 0.5.2 && < 0.6
-               , wai >= 3.2.1 && < 3.3
+               , servant-server
+               , string-class
+               , time
+               , transformers
+               , wai
                , wai-extra
                , with-location
 

@@ -9,7 +9,9 @@ let
 
   haskellPackages_ = haskellPackages.override {
     overrides = self: super: {
-      cryptonite = self.callPackage ./cryptonite-0.20.nix {};
+      cryptonite = self.callPackage ./libs/cryptonite-0.20.nix {};
+      hspec-expectations = self.callPackage ./libs/hspec-expectations-0.8.0.nix {};
+      hspec-wai = self.callPackage ./libs/hspec-wai-0.8.0.nix {};
     };
   };
 
