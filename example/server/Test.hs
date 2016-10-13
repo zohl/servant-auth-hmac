@@ -1,21 +1,21 @@
 {-# LANGUAGE RecordWildCards   #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE FlexibleContexts  #-}
+{-# LANGUAGE CPP               #-}
 
 import AuthAPI
-import Control.Monad (unless)
+import Control.Monad (guard)
+import Control.Applicative ((<$))
 import Data.IORef (newIORef, readIORef)
 import Data.Aeson (encode, decode)
 import Data.Default (def)
 import Data.Monoid ((<>))
-import Data.WithLocation (WithLocation)
 import Data.String.Class (ConvStrictByteString(..))
 import Data.Time.Clock (UTCTime, getCurrentTime)
 import Data.Time.Clock.POSIX (posixSecondsToUTCTime, utcTimeToPOSIXSeconds)
 import Network.Wai (Application)
 import Test.Hspec (Spec, hspec, describe, it)
-import Test.Hspec.Expectations (expectationFailure)
-import Test.Hspec.Wai (WaiExpectation, WaiSession, ResponseMatcher, (<:>))
+import Test.Hspec.Wai ((<:>), MatchBody(..))
 import Test.Hspec.Wai (request, matchHeaders, matchBody, shouldRespondWith, liftIO, with, get)
 import Servant.Server.Experimental.Auth.HMAC
 import qualified Data.Map as Map
@@ -29,7 +29,6 @@ import qualified Data.ByteString.Lazy as BSL
 import qualified Data.ByteString.Base64 as Base64 (encode)
 import qualified Data.ByteString.Char8 as BSC8
 import qualified Data.ByteString.Lazy.Char8 as BSLC8
-
 
 main :: IO ()
 main = hspec spec
@@ -45,45 +44,46 @@ spec = with (app (def :: AuthHmacSettings)) $ do
               laUsername = username
             , laPassword = "password"
             }
-      request methodPost "/login" [(hContentType, "application/json")] loginArgs
-        `shouldRespondWith` 403
+      let r = request methodPost "/login" [(hContentType, "application/json")] loginArgs
+      r `shouldRespondWith` 403
 
     it "accepts a request with correct username/password" $ do
       let loginArgs = encode $ LoginArgs {
               laUsername = username
             , laPassword = "password1"
             }
-      request methodPost "/login" [(hContentType, "application/json")] loginArgs
-        `shouldRespondWith` 200
+      let r = request methodPost "/login" [(hContentType, "application/json")] loginArgs
+      r `shouldRespondWith` 200
 
 
   describe "GET /secret" $ do
     let username = "mr_bar"
 
-    it "rejects a request without authoriaztion header" $
-      get ("/secret/" <> username) `shouldRespondWith` 401 {
+    it "rejects a request without authoriaztion header" $ do
+      let r = get ("/secret/" <> username)
+      r `shouldRespondWith` 401 {
           matchHeaders = [hWWWAuthenticate <:> "HMAC"]
-        , matchBody = Just . BSLC8.pack . show $ NotAuthoirized
+        , matchBody = bodyEquals . BSLC8.pack . show $ NotAuthoirized
         }
 
     it "rejects a request with incorrect authorization header" $ do
       let s = "nope"
       let r = request methodGet ("/secret/" <> username) [("Authorization", s)] ""
       r `shouldRespondWith` 403 {
-          matchBody = Just . BSLC8.pack . show $ BadAuthorizationHeader s
+        matchBody = bodyEquals . BSLC8.pack . show $ BadAuthorizationHeader s
         }
 
     it "rejects a request without appropriate parameters" $ do
       let r = request methodGet ("/secret/" <> username) [mkAuthHeader "" "" Nothing] ""
       r `shouldRespondWith` 403 {
-          matchBody = Just . BSLC8.pack . show $ AuthorizationParameterNotFound "timestamp"
+          matchBody = bodyEquals . BSLC8.pack . show $ AuthorizationParameterNotFound "timestamp"
         }
 
     it "rejects an expired request" $ do
       let hdr = mkAuthHeader "" "" $ Just (posixSecondsToUTCTime 0)
       let r = request methodGet ("/secret/" <> username) [hdr] ""
-      r  `shouldRespondWith` 403 {
-          matchBody = MatchBody $ \_ -> startsWith "RequestExpired "
+      r `shouldRespondWith` 403 {
+          matchBody = bodyStartsWith "RequestExpired "
         }
 
 
@@ -91,7 +91,7 @@ spec = with (app (def :: AuthHmacSettings)) $ do
       hdr <- liftIO $ mkAuthHeader (BSC8.unpack username) "" . Just <$> getCurrentTime
       let r = request methodGet ("/secret/" <> username)  [hdr] ""
       r `shouldRespondWith` 403 {
-          matchBody = Just . BSLC8.pack . show $ TokenNotFound username
+          matchBody = bodyEquals . BSLC8.pack . show $ TokenNotFound username
         }
 
     it "rejects a request with wrong signature" $ do
@@ -105,7 +105,7 @@ spec = with (app (def :: AuthHmacSettings)) $ do
       let r = request methodGet ("/secret/" <> username) [hdr] ""
 
       r `shouldRespondWith` 403 {
-          matchBody = MatchBody $ \_ -> startsWith "IncorrectHash "
+          matchBody = bodyStartsWith "IncorrectHash "
         }
 
 
@@ -133,7 +133,7 @@ spec = with (app (def :: AuthHmacSettings)) $ do
       let r = request methodGet ("/secret/" <> username) [hdr] ""
 
       r `shouldRespondWith` 200 {
-          matchBody = MatchBody $ \_ -> startsWith "\"Freedom is Slavery\""
+          matchBody = bodyStartsWith "\"Freedom is Slavery\""
         }
 
 
@@ -161,6 +161,21 @@ app authSettings = do
     ((defaultAuthHandler tokenProvider authSettings) :. EmptyContext)
     (serveAuth storage)
 
-startsWith :: BSL.ByteString -> BSL.ByteString -> Bool
-startsWith prefix s = prefix == BSL.take (BSL.length prefix) s
 
+bodyEquals :: BSL.ByteString -> MatchBody
+bodyEquals body = MatchBody $ \_ body' ->
+  (concat [
+      "expected \""
+      , BSLC8.unpack body
+      , "\" got \""
+      , BSLC8.unpack body'
+      , "\""]) <$ guard (body /= body')
+
+bodyStartsWith :: BSL.ByteString -> MatchBody
+bodyStartsWith body = MatchBody $ \_ body' -> let body'' = BSL.take (BSL.length body) body' in
+  (concat [
+      "expected \""
+      , BSLC8.unpack body
+      , "...\" got \""
+      , BSLC8.unpack body''
+      , "...\""]) <$ guard (body /= body'')
