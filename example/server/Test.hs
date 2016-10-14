@@ -5,7 +5,9 @@
 
 import AuthAPI
 import Control.Monad (guard)
+#if MIN_VERSION_GLASGOW_HASKELL(8,0,1,0)
 import Control.Applicative ((<$))
+#endif
 import Data.IORef (newIORef, readIORef)
 import Data.Aeson (encode, decode)
 import Data.Default (def)
