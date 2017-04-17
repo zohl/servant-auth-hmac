@@ -52,6 +52,7 @@ library
 executable example
   hs-source-dirs:     example/server
   main-is:            Example.hs
+  other-modules:      AuthAPI
   build-depends: base
                , aeson
                , blaze-html
